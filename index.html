@@ -3,52 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Antrian Enterprise v7</title>
+    <title>Sistem Antrian Enterprise v8</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <!-- Chart.js for SLA Dashboard -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800;900&display=swap');
         :root { --p-color: #004A99; --s-color: #F37021; }
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #F4F7FE; -webkit-font-smoothing: antialiased; }
-        
         .bg-primary { background-color: var(--p-color); }
         .bg-secondary { background-color: var(--s-color); }
         .text-primary { color: var(--p-color); }
         .text-secondary { color: var(--s-color); }
         .border-primary { border-color: var(--p-color); }
-        
         .marquee { white-space: nowrap; animation: scroll 30s linear infinite; }
         @keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
-        
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #E2E8F0; }
         ::-webkit-scrollbar-thumb { background: var(--p-color); border-radius: 10px; }
-
-        /* Dynamic Printer Settings via CSS Var injected by JS */
         @media print {
-            body * { visibility: hidden; }
-            #print-area, #print-area * { visibility: visible; }
+            body * { visibility: hidden; } #print-area, #print-area * { visibility: visible; }
             #print-area { position: absolute; left: 0; top: 0; width: var(--printer-width, 58mm); text-align: center; font-family: 'Courier New', Courier, monospace; color: black; background: white; margin:0; padding:0; }
         }
-
-        /* Admin Tab Utilities */
         .tab-content { display: none; animation: fadeIn 0.3s ease; }
         .tab-content.active { display: block; }
         .tab-btn.active { background-color: var(--p-color); color: white; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* Status Offline Indicator */
-        #offline-badge { display: none; }
-        body.offline #offline-badge { display: flex; }
+        #offline-badge { display: none; } body.offline #offline-badge { display: flex; }
+        .counter-offline { opacity: 0.4; filter: grayscale(100%); }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
 
-    <!-- Navbar Default -->
+    <!-- Top Navigation -->
     <nav id="top-nav" class="bg-white px-8 py-4 flex justify-between items-center shadow-sm z-50">
         <div class="flex items-center gap-5">
             <img id="nav-logo" src="" class="h-10 object-contain">
@@ -57,7 +44,7 @@
         </div>
         <div class="flex items-center gap-4">
             <div id="offline-badge" class="bg-red-100 text-red-600 px-4 py-2 rounded-xl font-bold text-sm items-center gap-2 border border-red-200 animate-pulse">
-                <i class="fa-solid fa-wifi"></i> OFFLINE MODE
+                <i class="fa-solid fa-wifi"></i> OFFLINE
             </div>
             <span id="role-badge" class="hidden bg-primary/10 text-primary px-5 py-2 rounded-xl font-bold text-sm tracking-widest border border-primary/20"></span>
             <div id="clock" class="text-xl font-bold text-slate-600 bg-slate-100 px-5 py-2 rounded-xl border border-slate-200">00:00:00</div>
@@ -66,7 +53,7 @@
 
     <main id="app-container" class="flex-grow overflow-auto relative bg-[#F4F7FE]"></main>
 
-    <!-- Custom Print Area -->
+    <!-- Hidden Print Area -->
     <div id="print-area" class="hidden flex flex-col items-center py-4 mx-auto text-black">
         <div id="p-header" class="text-sm font-bold whitespace-pre-line text-center border-b-2 border-dashed border-black pb-2 mb-2 w-full uppercase"></div>
         <div class="text-[10px] mt-2 text-center" id="p-service"></div>
@@ -82,13 +69,32 @@
         const view = params.get('view') || 'kiosk';
         let config = {};
         let slideIndex = 0;
+        let recentCalls = []; // History panel data
         let offlineQueue = JSON.parse(localStorage.getItem('offlineQueue') || '[]');
+        let rawReportData = []; // Full logs for advanced filtering
 
-        // Network Status Listener
         window.addEventListener('online', () => { document.body.classList.remove('offline'); syncOfflineData(); });
         window.addEventListener('offline', () => { document.body.classList.add('offline'); Swal.fire('Koneksi Terputus', 'Aplikasi beralih ke Offline Mode.', 'warning'); });
-
         const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+
+        // Web Audio API for Pre-Voice Chime (Offline safe)
+        function playChime() {
+            return new Promise(resolve => {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const playTone = (freq, time, duration) => {
+                    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+                    osc.connect(gain); gain.connect(ctx.destination);
+                    osc.type = 'sine'; osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0, time);
+                    gain.gain.linearRampToValueAtTime(0.3, time + 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+                    osc.start(time); osc.stop(time + duration);
+                };
+                playTone(659.25, ctx.currentTime, 0.8); // Note E5
+                playTone(523.25, ctx.currentTime + 0.4, 1.2); // Note C5
+                setTimeout(resolve, 1400); // Wait until chime finishes
+            });
+        }
 
         async function init() {
             if(!navigator.onLine) document.body.classList.add('offline');
@@ -96,38 +102,31 @@
             try {
                 const res = await fetch(`${API_URL}?action=getConfig`);
                 config = await res.json();
-                localStorage.setItem('cachedConfig', JSON.stringify(config)); // Cache for offline Kiosk
+                localStorage.setItem('cachedConfig', JSON.stringify(config));
             } catch (e) { 
                 config = JSON.parse(localStorage.getItem('cachedConfig') || '{}');
-                if(!config.bankName) return Swal.fire({ icon: 'error', title: 'Error Fatal', text: 'Tidak ada cache offline. Butuh internet pertama kali.' });
+                if(!config.bankName) return Swal.fire({ icon: 'error', title: 'Error Fatal', text: 'Tidak ada cache offline.' });
             }
-            updateBrand();
-            renderView();
-            setInterval(updateClock, 1000);
+            updateBrand(); renderView(); setInterval(updateClock, 1000);
         }
 
         function updateClock() { const el = document.getElementById('clock'); if(el) el.innerText = new Date().toLocaleTimeString('id-ID'); }
-
         function updateBrand() {
             document.documentElement.style.setProperty('--p-color', config.primaryColor);
             document.documentElement.style.setProperty('--s-color', config.secondaryColor);
             document.documentElement.style.setProperty('--printer-width', config.printerSize);
-            document.getElementById('nav-bank-name').innerText = config.bankName;
-            document.getElementById('nav-logo').src = config.bankLogo;
+            document.getElementById('nav-bank-name').innerText = config.bankName; document.getElementById('nav-logo').src = config.bankLogo;
             const badge = document.getElementById('role-badge');
             if(view !== 'display' && view !== 'kiosk') { badge.classList.remove('hidden'); badge.innerText = view === 'staff' ? params.get('name').toUpperCase() : view.toUpperCase(); }
         }
 
         function renderView() {
             const el = document.getElementById('app-container');
-            if(view === 'kiosk') renderKiosk(el);
-            else if(view === 'display') renderDisplay(el);
-            else if(view === 'staff') renderStaff(el);
-            else if(view === 'admin') renderAdmin(el);
+            if(view === 'kiosk') renderKiosk(el); else if(view === 'display') renderDisplay(el); else if(view === 'staff') renderStaff(el); else if(view === 'admin') renderAdmin(el);
         }
 
         // ==========================================
-        // 1. KIOSK (Customizable Welcome Text & Offline Support)
+        // 1. KIOSK
         // ==========================================
         function renderKiosk(el) {
             document.getElementById('top-nav').style.display = 'none';
@@ -135,8 +134,6 @@
                 <div id="kiosk-ui" class="h-full flex-col bg-cover bg-center relative flex" style="background-image: url('https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80');">
                     <div class="absolute inset-0 bg-primary/95 backdrop-blur-md"></div>
                     <div class="z-10 flex flex-col h-full w-full p-12">
-                        
-                        <!-- Header & Customizable Welcome -->
                         <div class="flex justify-between items-start mb-10 border-b border-white/20 pb-8">
                             <img src="${config.bankLogo}" class="h-20 brightness-0 invert filter drop-shadow-md">
                             <div class="text-right text-white max-w-2xl">
@@ -144,10 +141,7 @@
                                 <p class="text-xl text-white/90 font-medium">${config.kioskWelcomeDesc}</p>
                             </div>
                         </div>
-
-                        <!-- Main Content -->
                         <div class="flex-grow flex flex-col items-center justify-center max-w-7xl mx-auto w-full gap-10">
-                            
                             <div class="w-full max-w-2xl bg-white p-6 rounded-3xl shadow-2xl relative">
                                 <div class="absolute -top-16 left-1/2 transform -translate-x-1/2">
                                     <video id="cam" autoplay playsinline class="w-32 h-32 rounded-full border-[6px] border-white object-cover shadow-xl bg-slate-800"></video>
@@ -162,14 +156,9 @@
                                     </select>
                                 </div>
                             </div>
-
                             <div class="grid grid-cols-2 gap-10 w-full max-w-5xl">
-                                <button onclick="takeTicket('teller')" class="hover:scale-105 transition-transform bg-gradient-to-br from-blue-500 to-blue-800 p-12 rounded-[3rem] text-white flex flex-col items-center justify-center shadow-2xl">
-                                    <i class="fa-solid fa-vault text-[80px] mb-6 drop-shadow-lg"></i><div class="text-4xl font-black">TELLER</div>
-                                </button>
-                                <button onclick="takeTicket('cs')" class="hover:scale-105 transition-transform bg-gradient-to-br from-secondary to-orange-600 p-12 rounded-[3rem] text-white flex flex-col items-center justify-center shadow-2xl">
-                                    <i class="fa-solid fa-user-tie text-[80px] mb-6 drop-shadow-lg"></i><div class="text-4xl font-black">CUSTOMER SERVICE</div>
-                                </button>
+                                <button onclick="takeTicket('teller')" class="hover:scale-105 transition-transform bg-gradient-to-br from-blue-500 to-blue-800 p-12 rounded-[3rem] text-white flex flex-col items-center justify-center shadow-2xl"><i class="fa-solid fa-vault text-[80px] mb-6 drop-shadow-lg"></i><div class="text-4xl font-black">TELLER</div></button>
+                                <button onclick="takeTicket('cs')" class="hover:scale-105 transition-transform bg-gradient-to-br from-secondary to-orange-600 p-12 rounded-[3rem] text-white flex flex-col items-center justify-center shadow-2xl"><i class="fa-solid fa-user-tie text-[80px] mb-6 drop-shadow-lg"></i><div class="text-4xl font-black">CUSTOMER SERVICE</div></button>
                             </div>
                         </div>
                     </div>
@@ -182,47 +171,34 @@
 
         async function takeTicket(type) {
             Swal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
-            
-            let photo = "";
-            const video = document.getElementById('cam');
-            if(video && video.srcObject) {
-                const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-                canvas.getContext('2d').drawImage(video, 0, 0); photo = canvas.toDataURL('image/jpeg', 0.5);
-            }
+            let photo = ""; const video = document.getElementById('cam');
+            if(video && video.srcObject) { const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight; canvas.getContext('2d').drawImage(video, 0, 0); photo = canvas.toDataURL('image/jpeg', 0.5); }
             const service = document.getElementById('spec-service').value;
 
             if(!navigator.onLine) {
-                // OFFLINE QUEUE HANDLING
-                const ticketNo = (type === 'teller' ? 'T-O' : 'C-O') + Math.floor(Math.random()*1000); // Temporary offline ticket
+                const ticketNo = (type === 'teller' ? 'T-O' : 'C-O') + Math.floor(Math.random()*1000);
                 offlineQueue.push({ type, photo, service, timestamp: new Date().getTime(), ticket: ticketNo });
                 localStorage.setItem('offlineQueue', JSON.stringify(offlineQueue));
                 printResi(ticketNo, service);
-                return Swal.fire('Mode Offline', 'Antrian tersimpan secara offline. Akan sinkron saat internet kembali.', 'info');
+                return Swal.fire('Mode Offline', 'Antrian tersimpan offline.', 'info');
             }
 
             try {
                 const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'generate', type, photo, service }) });
                 const data = await res.json();
                 if(data.success) printResi(data.ticket, service);
-            } catch (e) { Swal.fire('Gagal', 'Koneksi terputus. Pastikan status online.', 'error'); }
+            } catch (e) { Swal.fire('Gagal', 'Koneksi terputus.', 'error'); }
         }
 
         function printResi(ticketNo, service) {
             Swal.fire({ icon: 'success', title: 'Silahkan Ambil Resi', text: `Nomor Antrian: ${ticketNo}`, timer: 3000, showConfirmButton: false });
-            document.getElementById('p-header').innerText = config.receiptTemplate.header;
-            document.getElementById('p-footer').innerText = config.receiptTemplate.footer;
-            document.getElementById('p-disclaimer').innerText = config.receiptTemplate.disclaimer;
-            document.getElementById('p-ticket').innerText = ticketNo;
-            document.getElementById('p-service').innerText = "Layanan: " + service;
-            document.getElementById('p-date').innerText = new Date().toLocaleString('id-ID');
-            document.getElementById('print-area').classList.remove('hidden');
-            window.print();
-            document.getElementById('print-area').classList.add('hidden');
+            document.getElementById('p-header').innerText = config.receiptTemplate.header; document.getElementById('p-footer').innerText = config.receiptTemplate.footer; document.getElementById('p-disclaimer').innerText = config.receiptTemplate.disclaimer;
+            document.getElementById('p-ticket').innerText = ticketNo; document.getElementById('p-service').innerText = "Layanan: " + service; document.getElementById('p-date').innerText = new Date().toLocaleString('id-ID');
+            document.getElementById('print-area').classList.remove('hidden'); window.print(); document.getElementById('print-area').classList.add('hidden');
         }
 
         async function syncOfflineData() {
             if(offlineQueue.length === 0) return;
-            Toast.fire({ icon: 'info', title: 'Sinkronisasi antrian offline ke server...' });
             try {
                 const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'syncOfflineQueue', payload: offlineQueue }) });
                 const data = await res.json();
@@ -231,17 +207,15 @@
         }
 
         // ==========================================
-        // 2. DISPLAY BANKING HALL (Media Editor Support)
+        // 2. DISPLAY BANKING HALL (With Recent Calls & Break Mode UI)
         // ==========================================
         function renderDisplay(el) {
             document.getElementById('top-nav').style.display = 'none';
-            // Media Setup (URL Image Array or Youtube)
-            let mediaHtml = config.mediaType === 'youtube' ? `<iframe class="w-full h-full pointer-events-none" src="https://www.youtube.com/embed/${config.mediaSource}?autoplay=1&mute=1&loop=1&playlist=${config.mediaSource}&controls=0" frameborder="0"></iframe>` :
-                            `<img id="slide-img" class="w-full h-full object-cover transition-all duration-1000 ease-in-out">`;
+            let mediaHtml = config.mediaType === 'youtube' ? `<iframe class="w-full h-full pointer-events-none" src="https://www.youtube.com/embed/${config.mediaSource}?autoplay=1&mute=1&loop=1&playlist=${config.mediaSource}&controls=0" frameborder="0"></iframe>` : `<img id="slide-img" class="w-full h-full object-cover transition-all duration-1000 ease-in-out">`;
 
             let counterGridHTML = config.counters.map(c => `
-                <div class="bg-white/10 backdrop-blur-md rounded-2xl overflow-hidden border border-white/20 shadow-lg flex flex-col" id="box-${c.replace(/\s+/g, '-')}">
-                    <div class="bg-primary/80 backdrop-blur text-white text-center font-bold py-2 text-sm uppercase tracking-widest">${c}</div>
+                <div class="bg-white/10 backdrop-blur-md rounded-2xl overflow-hidden border border-white/20 shadow-lg flex flex-col transition-all duration-500" id="box-${c.replace(/\s+/g, '-')}">
+                    <div class="bg-primary/80 backdrop-blur text-white text-center font-bold py-2 text-sm uppercase tracking-widest flex justify-center items-center gap-2">${c} <i class="fa-solid fa-ban text-red-400 hidden" id="icon-break-${c.replace(/\s+/g, '-')}"></i></div>
                     <div class="text-center py-4 text-4xl font-black text-white" id="grid-${c.replace(/\s+/g, '-')}">-</div>
                 </div>
             `).join('');
@@ -255,18 +229,24 @@
                                 <div class="grid grid-cols-${Math.min(config.counters.length, 5)} gap-6">${counterGridHTML}</div>
                             </div>
                         </div>
-                        <div class="col-span-4 bg-white flex flex-col p-12 text-center z-10 relative">
-                            <div class="bg-slate-50 border border-slate-100 rounded-[2rem] p-8 flex-grow flex flex-col items-center justify-center shadow-inner relative overflow-hidden">
-                                <h2 class="text-xl font-black text-slate-400 mb-10 uppercase tracking-[0.3em]">Antrian Dipanggil</h2>
-                                <div class="relative w-64 h-64 rounded-full bg-white overflow-hidden border-8 border-slate-100 shadow-xl flex items-center justify-center z-10 mb-8">
+                        <div class="col-span-4 bg-white flex flex-col text-center z-10 relative overflow-hidden">
+                            <!-- Main Call -->
+                            <div class="bg-slate-50 p-10 flex flex-col items-center justify-center shadow-inner relative flex-grow">
+                                <h2 class="text-xl font-black text-slate-400 mb-8 uppercase tracking-[0.3em]">Antrian Dipanggil</h2>
+                                <div class="relative w-56 h-56 rounded-full bg-white overflow-hidden border-8 border-slate-100 shadow-xl flex items-center justify-center z-10 mb-8">
                                     <img src="" id="d-img" class="w-full h-full object-cover hidden">
-                                    <i id="d-icon" class="fa-solid fa-volume-high text-[100px] text-slate-200"></i>
+                                    <i id="d-icon" class="fa-solid fa-volume-high text-[80px] text-slate-200"></i>
                                 </div>
-                                <div id="d-ticket" class="text-[140px] font-black text-primary leading-none mb-6 transition-all duration-300">-</div>
+                                <div id="d-ticket" class="text-[120px] font-black text-primary leading-none mb-6 transition-all duration-300">-</div>
                                 <div class="flex items-center gap-4 bg-slate-800 px-10 py-4 rounded-full shadow-xl">
                                     <span class="text-slate-400 font-bold uppercase text-sm tracking-widest">MENUJU</span>
-                                    <div id="d-counter" class="text-4xl font-black text-secondary">LOKET -</div>
+                                    <div id="d-counter" class="text-3xl font-black text-secondary">LOKET -</div>
                                 </div>
+                            </div>
+                            <!-- Panel Baru Saja Dipanggil -->
+                            <div class="bg-white border-t border-slate-200 p-6 flex flex-col h-64">
+                                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest text-left mb-4"><i class="fa-solid fa-clock-rotate-left mr-2"></i> Baru Saja Dipanggil</h3>
+                                <div id="recent-calls-list" class="flex flex-col gap-3 overflow-hidden"></div>
                             </div>
                         </div>
                     </div>
@@ -278,6 +258,7 @@
             if(config.mediaType === 'slideshow') setInterval(playSlideshow, 5000);
             setInterval(pollDisplay, 2500);
         }
+
         function playSlideshow() {
             const urls = config.mediaSource.split(',').map(s => s.trim());
             const el = document.getElementById('slide-img');
@@ -286,16 +267,50 @@
 
         let lastT = "";
         async function pollDisplay() {
-            if(!navigator.onLine) return; // Ignore polling if offline
+            if(!navigator.onLine) return;
             try {
                 const res = await fetch(`${API_URL}?action=getState`); const state = await res.json();
-                if(state.activeCounters) config.counters.forEach(c => { const el = document.getElementById(`grid-${c.replace(/\s+/g, '-')}`); if(el) el.innerText = state.activeCounters[c] || "-"; });
+                
+                // Update Grids & Break Mode UI
+                if(state.activeCounters) {
+                    config.counters.forEach(c => {
+                        const boxID = `box-${c.replace(/\s+/g, '-')}`;
+                        const gridID = `grid-${c.replace(/\s+/g, '-')}`;
+                        const iconID = `icon-break-${c.replace(/\s+/g, '-')}`;
+                        
+                        const elGrid = document.getElementById(gridID);
+                        const elBox = document.getElementById(boxID);
+                        const elIcon = document.getElementById(iconID);
+                        
+                        if(elGrid) elGrid.innerText = state.activeCounters[c] || "-";
+                        
+                        // Handle Break/Tutup Status
+                        if(state.counterStatus && (state.counterStatus[c] === 'break' || state.counterStatus[c] === 'offline')) {
+                            elBox.classList.add('counter-offline');
+                            elGrid.innerText = "TUTUP";
+                            elIcon.classList.remove('hidden');
+                        } else {
+                            elBox.classList.remove('counter-offline');
+                            elIcon.classList.add('hidden');
+                        }
+                    });
+                }
+
                 const now = state.lastCalled;
                 if(now.ticket !== lastT && now.ticket !== "-") {
+                    // Update Recent Calls Array
+                    if(lastT !== "" && lastT !== "-") {
+                        recentCalls.unshift({ ticket: document.getElementById('d-ticket').innerText, counter: document.getElementById('d-counter').innerText });
+                        if(recentCalls.length > 3) recentCalls.pop();
+                        renderRecentCalls();
+                    }
+
                     document.getElementById('d-ticket').innerText = now.ticket; document.getElementById('d-counter').innerText = now.counter;
                     const imgEl = document.getElementById('d-img'); const iconEl = document.getElementById('d-icon');
-                    if(imgEl && now.photo) { imgEl.src = now.photo; imgEl.classList.remove('hidden'); iconEl.classList.add('hidden'); } 
-                    else { imgEl.classList.add('hidden'); iconEl.classList.remove('hidden'); }
+                    if(imgEl && now.photo) { imgEl.src = now.photo; imgEl.classList.remove('hidden'); iconEl.classList.add('hidden'); } else { imgEl.classList.add('hidden'); iconEl.classList.remove('hidden'); }
+                    
+                    // Pre-Voice Chime implementation
+                    await playChime();
                     const msg = new SpeechSynthesisUtterance(`Nomor antrian, ${now.ticket.replace('-', ' ')}, silahkan menuju, ${now.counter}`);
                     msg.lang = 'id-ID'; msg.rate = 0.85; speechSynthesis.speak(msg);
                     lastT = now.ticket;
@@ -303,28 +318,38 @@
             } catch(e){}
         }
 
+        function renderRecentCalls() {
+            const container = document.getElementById('recent-calls-list');
+            container.innerHTML = recentCalls.map(rc => `
+                <div class="bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center shadow-sm animation-fadeIn">
+                    <div class="font-black text-slate-700 text-2xl">${rc.ticket}</div>
+                    <div class="text-xs font-bold bg-slate-200 text-slate-600 px-3 py-1 rounded-full uppercase">${rc.counter}</div>
+                </div>
+            `).join('');
+        }
+
         // ==========================================
-        // 3. STAFF COUNTER (Custom Theme Support)
+        // 3. STAFF COUNTER (Break Mode & Transfer Queue)
         // ==========================================
         function renderStaff(el) {
             const role = params.get('role') || 'teller';
             const counterName = params.get('name') || `${role.toUpperCase()} 1`;
-            
-            // Apply Theme
             const themeClass = config.counterTheme === 'dark' ? 'bg-slate-900 text-white border-slate-700' : config.counterTheme === 'brand' ? 'bg-primary text-white border-blue-800' : 'bg-white text-slate-800 border-slate-100';
-            const textMuted = config.counterTheme === 'light' ? 'text-slate-400' : 'text-slate-300';
             const cardInner = config.counterTheme === 'light' ? 'bg-slate-50' : 'bg-black/20';
 
             el.innerHTML = `
                 <div class="h-full p-8 flex flex-col gap-6 max-w-6xl mx-auto w-full">
                     <div class="${themeClass} rounded-3xl p-6 shadow-sm flex justify-between items-center border">
                         <div class="flex items-center gap-4">
-                            <div class="w-4 h-4 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.6)]"></div>
-                            <span class="font-black text-3xl uppercase tracking-widest">${counterName}</span>
+                            <select id="staff-status" onchange="changeStaffStatus('${counterName}')" class="bg-transparent font-black text-3xl uppercase tracking-widest outline-none cursor-pointer border-b-2 border-dashed pb-1">
+                                <option value="online" class="text-black">🟢 ${counterName} (AKTIF)</option>
+                                <option value="break" class="text-black">🟠 ${counterName} (ISTIRAHAT)</option>
+                                <option value="offline" class="text-black">🔴 ${counterName} (TUTUP)</option>
+                            </select>
                         </div>
                         <div class="flex gap-8 text-right ${cardInner} p-4 rounded-2xl border border-white/10">
                             <div class="pr-6 border-r border-white/20">
-                                <div class="text-[11px] font-bold ${textMuted} uppercase">Riwayat Sebelumnya</div>
+                                <div class="text-[11px] font-bold uppercase opacity-60">Riwayat Sebelumnya</div>
                                 <div id="st-prev" class="text-xl font-bold">-</div>
                             </div>
                             <div>
@@ -334,21 +359,22 @@
                         </div>
                     </div>
 
-                    <div class="${themeClass} p-12 rounded-[3rem] shadow-xl border flex-grow flex gap-16 items-center justify-center">
-                        <div id="s-photo" class="${cardInner} w-80 h-80 rounded-[2.5rem] border-4 border-dashed border-white/20 flex items-center justify-center overflow-hidden shadow-inner">
+                    <div class="${themeClass} p-12 rounded-[3rem] shadow-xl border flex-grow flex gap-16 items-center justify-center relative overflow-hidden">
+                        <div id="s-photo" class="${cardInner} w-80 h-80 rounded-[2.5rem] border-4 border-dashed border-white/20 flex items-center justify-center overflow-hidden shadow-inner shrink-0">
                             <i class="fa-solid fa-user-astronaut text-[100px] opacity-30"></i>
                         </div>
-                        <div class="flex flex-col flex-grow max-w-xl">
-                            <div class="text-sm font-bold ${textMuted} uppercase tracking-widest mb-2">Sedang Dilayani</div>
-                            <div id="s-ticket" class="text-[120px] font-black leading-none mb-4 ${config.counterTheme==='light'?'text-primary':'text-white'} drop-shadow-sm">-</div>
-                            <div id="s-service" class="text-xl font-bold ${cardInner} px-6 py-2 rounded-xl inline-block w-max mb-8">-</div>
+                        <div class="flex flex-col flex-grow w-full max-w-2xl">
+                            <div class="text-sm font-bold uppercase tracking-widest mb-2 opacity-60">Sedang Dilayani</div>
+                            <div id="s-ticket" class="text-[100px] font-black leading-none mb-4 drop-shadow-sm">-</div>
+                            <div id="s-service" class="text-xl font-bold ${cardInner} px-6 py-2 rounded-xl inline-block w-max mb-6 border border-white/10">-</div>
 
-                            <button onclick="staffAction('call', '${role}', '${counterName}')" class="w-full py-6 bg-secondary text-white text-2xl font-black rounded-2xl shadow-lg mb-4 hover:scale-105 transition-transform">
-                                <i class="fa-solid fa-bullhorn mr-2"></i> PANGGIL BERIKUTNYA
+                            <button onclick="staffAction('call', '${role}', '${counterName}')" class="w-full py-6 bg-secondary text-white text-2xl font-black rounded-2xl shadow-lg mb-4 hover:scale-105 transition-transform flex items-center justify-center gap-3">
+                                <i class="fa-solid fa-bullhorn"></i> PANGGIL BERIKUTNYA
                             </button>
-                            <div class="grid grid-cols-2 gap-4">
-                                <button onclick="staffAction('recall', '${role}', '${counterName}')" class="py-5 ${cardInner} font-bold rounded-2xl hover:brightness-90 transition-colors border border-white/10"><i class="fa-solid fa-rotate-right"></i> Panggil Ulang</button>
-                                <button onclick="markDone()" class="py-5 bg-green-500 text-white font-bold rounded-2xl shadow-lg hover:bg-green-600 transition-colors"><i class="fa-solid fa-check-double"></i> Selesai</button>
+                            <div class="grid grid-cols-3 gap-3">
+                                <button onclick="staffAction('recall', '${role}', '${counterName}')" class="py-4 ${cardInner} font-bold rounded-2xl hover:brightness-90 transition-colors border border-white/10"><i class="fa-solid fa-rotate-right"></i> Ulang</button>
+                                <button onclick="transferQueue('${counterName}')" class="py-4 bg-indigo-500 text-white font-bold rounded-2xl hover:bg-indigo-600 transition-colors shadow-md"><i class="fa-solid fa-share-nodes"></i> Transfer</button>
+                                <button onclick="markDone()" class="py-4 bg-emerald-500 text-white font-bold rounded-2xl shadow-md hover:bg-emerald-600 transition-colors"><i class="fa-solid fa-check-double"></i> Selesai</button>
                             </div>
                         </div>
                     </div>
@@ -358,13 +384,48 @@
         }
 
         let lastCalled = "";
+        let lastPhoto = "";
+        let lastService = "";
+
+        async function changeStaffStatus(counterName) {
+            const status = document.getElementById('staff-status').value;
+            try {
+                await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'updateStatus', counterName, status }) });
+                Toast.fire({ icon: 'success', title: `Status diubah ke ${status.toUpperCase()}` });
+            } catch(e){}
+        }
+
+        async function transferQueue(counterName) {
+            if(!lastCalled || lastCalled === "-") return Toast.fire({ icon: 'warning', title: 'Belum ada tiket aktif.' });
+            
+            const target = await Swal.fire({
+                title: 'Transfer Antrian',
+                text: `Pindahkan tiket ${lastCalled} ke loket mana?`,
+                input: 'select',
+                inputOptions: { 'teller': 'Antrian TELLER', 'cs': 'Antrian CUSTOMER SERVICE' },
+                showCancelButton: true, confirmButtonText: 'Transfer Sekarang'
+            });
+
+            if(target.isConfirmed) {
+                Swal.fire({ title: 'Memproses Transfer...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+                try {
+                    const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'transfer', targetType: target.value, photo: lastPhoto, service: lastService }) });
+                    const data = await res.json();
+                    if(data.success) {
+                        Swal.fire('Berhasil Transfer', `Tiket baru nasabah ini adalah: ${data.newTicket}. Silahkan catat di resi nasabah.`, 'success');
+                        markDone();
+                    }
+                } catch(e) { Swal.fire('Error', 'Gagal transfer antrian', 'error'); }
+            }
+        }
+
         async function staffAction(action, type, counterName) {
-            if(action === 'recall' && !lastCalled) return Toast.fire({ icon: 'info', title: 'Belum ada nasabah.' });
+            if(action === 'recall' && (!lastCalled || lastCalled === "-")) return Toast.fire({ icon: 'info', title: 'Belum ada nasabah.' });
             try {
                 const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action, type, counterName, lastTicket: lastCalled }) });
                 const data = await res.json();
                 if(data.success) {
-                    lastCalled = data.ticket;
+                    lastCalled = data.ticket; lastPhoto = data.photo || ""; lastService = data.service || "Umum";
                     document.getElementById('s-ticket').innerText = data.ticket; document.getElementById('s-service').innerText = data.service;
                     if(data.photo) document.getElementById('s-photo').innerHTML = `<img src="${data.photo}" class="w-full h-full object-cover">`;
                     Toast.fire({ icon: 'success', title: `Antrian dipanggil.` });
@@ -372,11 +433,13 @@
                 } else { Swal.fire('Info', data.msg, 'info'); }
             } catch(e) { Toast.fire({ icon: 'error', title: 'Gagal koneksi.' }); }
         }
+
         function markDone() {
-            if(!lastCalled) return;
+            if(!lastCalled || lastCalled === "-") return;
             document.getElementById('s-ticket').innerText = "-"; document.getElementById('s-service').innerText = "-"; document.getElementById('s-photo').innerHTML = `<i class="fa-solid fa-user-astronaut text-[100px] opacity-30"></i>`;
-            lastCalled = ""; Toast.fire({ icon: 'success', title: 'Transaksi Selesai.' });
+            lastCalled = ""; lastPhoto = ""; lastService = ""; Toast.fire({ icon: 'success', title: 'Transaksi Selesai.' });
         }
+
         async function pollStaffStatus(role) {
             try {
                 const res = await fetch(`${API_URL}?action=getState`); const state = await res.json();
@@ -388,141 +451,121 @@
         }
 
         // ==========================================
-        // 4. ADMIN DASHBOARD (SUPER COMPLETE WITH TABS)
+        // 4. ADMIN DASHBOARD (ADVANCED ANALYTICS FILTER)
         // ==========================================
         function renderAdmin(el) {
+            // Check for Lock Screen first
+            if(!sessionStorage.getItem('adminUnlocked')) {
+                return renderAdminLock(el);
+            }
+
             el.innerHTML = `
                 <div class="flex h-full max-w-[1600px] mx-auto overflow-hidden bg-white shadow-2xl m-4 rounded-[2rem] border border-slate-200">
-                    
-                    <!-- Sidebar Navigation -->
-                    <div class="w-72 bg-slate-50 border-r border-slate-200 p-6 flex flex-col gap-2">
+                    <div class="w-72 bg-slate-50 border-r border-slate-200 p-6 flex flex-col gap-2 z-10">
                         <div class="mb-8 px-4">
                             <h2 class="text-xl font-black text-slate-800 uppercase tracking-widest"><i class="fa-solid fa-sliders text-primary"></i> Master Web</h2>
                             <p class="text-xs text-slate-500 font-bold mt-1">Admin Control Panel</p>
                         </div>
-                        <button onclick="switchTab('tab-branding', this)" class="tab-btn active text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200 transition-colors mb-2"><i class="fa-solid fa-building-columns mr-3 w-5"></i> Identitas Bank</button>
-                        <button onclick="switchTab('tab-kiosk', this)" class="tab-btn text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200 transition-colors mb-2"><i class="fa-solid fa-tablet-screen-button mr-3 w-5"></i> Kiosk Nasabah</button>
-                        <button onclick="switchTab('tab-display', this)" class="tab-btn text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200 transition-colors mb-2"><i class="fa-solid fa-desktop mr-3 w-5"></i> Banking Hall</button>
-                        <button onclick="switchTab('tab-printer', this)" class="tab-btn text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200 transition-colors mb-2"><i class="fa-solid fa-print mr-3 w-5"></i> Printer Thermal</button>
-                        <button onclick="switchTab('tab-counter', this)" class="tab-btn text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200 transition-colors mb-2"><i class="fa-solid fa-users-gear mr-3 w-5"></i> Counter Staff</button>
-                        <button onclick="switchTab('tab-report', this)" class="tab-btn text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200 transition-colors mt-auto"><i class="fa-solid fa-chart-pie mr-3 w-5"></i> Laporan SLA</button>
+                        <button onclick="switchTab('tab-branding', this)" class="tab-btn active text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200"><i class="fa-solid fa-building-columns mr-3 w-5"></i> Identitas Bank</button>
+                        <button onclick="switchTab('tab-kiosk', this)" class="tab-btn text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200"><i class="fa-solid fa-tablet-screen-button mr-3 w-5"></i> Kiosk Nasabah</button>
+                        <button onclick="switchTab('tab-display', this)" class="tab-btn text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200"><i class="fa-solid fa-desktop mr-3 w-5"></i> Banking Hall</button>
+                        <button onclick="switchTab('tab-printer', this)" class="tab-btn text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200"><i class="fa-solid fa-print mr-3 w-5"></i> Thermal Printer</button>
+                        <button onclick="switchTab('tab-counter', this)" class="tab-btn text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200"><i class="fa-solid fa-users-gear mr-3 w-5"></i> Counter Staff</button>
+                        <button onclick="switchTab('tab-report', this)" class="tab-btn text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200 mt-auto"><i class="fa-solid fa-chart-line mr-3 w-5"></i> Data & Laporan</button>
+                        <button onclick="lockAdmin()" class="text-left px-6 py-3 rounded-2xl font-bold text-red-500 hover:bg-red-50 mt-2"><i class="fa-solid fa-lock mr-3 w-5"></i> Lock Screen</button>
                     </div>
 
-                    <!-- Main Content Area -->
                     <div class="flex-grow p-10 overflow-auto bg-[#F4F7FE] relative">
-                        
-                        <div class="absolute top-10 right-10 flex gap-4">
-                            <button onclick="resetQueue()" class="bg-red-100 text-red-600 px-6 py-3 rounded-xl font-bold border border-red-200 hover:bg-red-200 transition-colors"><i class="fa-solid fa-power-off"></i> Reset Harian</button>
-                            <button onclick="saveAdminConfig()" class="bg-primary text-white px-8 py-3 rounded-xl font-black shadow-lg hover:scale-105 transition-transform"><i class="fa-solid fa-floppy-disk"></i> SIMPAN SEMUA</button>
+                        <div class="absolute top-10 right-10 flex gap-4 z-50">
+                            <button onclick="resetQueue()" class="bg-red-100 text-red-600 px-6 py-3 rounded-xl font-bold border border-red-200 hover:bg-red-200"><i class="fa-solid fa-power-off"></i> Reset Harian</button>
+                            <button onclick="saveAdminConfig()" class="bg-primary text-white px-8 py-3 rounded-xl font-black shadow-lg hover:scale-105"><i class="fa-solid fa-floppy-disk"></i> SIMPAN SEMUA</button>
                         </div>
-
-                        <!-- TAB 1: IDENTITAS -->
+                        <!-- ... TABS 1 TO 5 ARE IDENTICAL TO PREVIOUS VERSION ... -->
                         <div id="tab-branding" class="tab-content active max-w-4xl pt-16">
                             <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Identitas & Branding</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
-                                <div><label class="block text-xs font-bold text-slate-500 mb-2">NAMA BANK / CABANG</label><input id="f-bname" class="w-full p-4 bg-slate-50 border rounded-xl font-bold" value="${config.bankName}"></div>
-                                <div><label class="block text-xs font-bold text-slate-500 mb-2">URL GAMBAR LOGO (Transparan disarankan)</label><input id="f-logo" class="w-full p-4 bg-slate-50 border rounded-xl" value="${config.bankLogo}"></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">NAMA BANK</label><input id="f-bname" class="w-full p-4 bg-slate-50 border rounded-xl font-bold" value="${config.bankName}"></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">URL GAMBAR LOGO</label><input id="f-logo" class="w-full p-4 bg-slate-50 border rounded-xl" value="${config.bankLogo}"></div>
                                 <div class="grid grid-cols-2 gap-6">
-                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">WARNA PRIMARY (Dasar)</label><input type="color" id="f-c1" class="w-full h-16 rounded-xl cursor-pointer border-none shadow-sm" value="${config.primaryColor}"></div>
-                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">WARNA SECONDARY (Aksen)</label><input type="color" id="f-c2" class="w-full h-16 rounded-xl cursor-pointer border-none shadow-sm" value="${config.secondaryColor}"></div>
+                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">WARNA PRIMARY</label><input type="color" id="f-c1" class="w-full h-16 rounded-xl cursor-pointer border-none shadow-sm" value="${config.primaryColor}"></div>
+                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">WARNA SECONDARY</label><input type="color" id="f-c2" class="w-full h-16 rounded-xl cursor-pointer border-none shadow-sm" value="${config.secondaryColor}"></div>
                                 </div>
                             </div>
                         </div>
-
-                        <!-- TAB 2: KIOSK -->
+                        
                         <div id="tab-kiosk" class="tab-content max-w-4xl pt-16">
                             <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Layar Kiosk Nasabah</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
-                                <div><label class="block text-xs font-bold text-slate-500 mb-2">TEKS SAMBUTAN UTAMA (BESAR)</label><input id="f-ktitle" class="w-full p-4 bg-slate-50 border rounded-xl font-black text-xl" value="${config.kioskWelcomeTitle}"></div>
-                                <div><label class="block text-xs font-bold text-slate-500 mb-2">DESKRIPSI SAMBUTAN (KECIL)</label><input id="f-kdesc" class="w-full p-4 bg-slate-50 border rounded-xl" value="${config.kioskWelcomeDesc}"></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">TEKS SAMBUTAN UTAMA</label><input id="f-ktitle" class="w-full p-4 bg-slate-50 border rounded-xl font-black text-xl" value="${config.kioskWelcomeTitle}"></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">DESKRIPSI</label><input id="f-kdesc" class="w-full p-4 bg-slate-50 border rounded-xl" value="${config.kioskWelcomeDesc}"></div>
                             </div>
                         </div>
 
-                        <!-- TAB 3: BANKING HALL -->
                         <div id="tab-display" class="tab-content max-w-4xl pt-16">
-                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Media Layar Banking Hall</h2>
+                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Media Banking Hall</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
-                                <div><label class="block text-xs font-bold text-slate-500 mb-2">TEKS BERJALAN (RUNNING TEXT)</label><textarea id="f-text" class="w-full p-4 bg-slate-50 border rounded-xl font-bold" rows="3">${config.runningText}</textarea></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">RUNNING TEXT</label><textarea id="f-text" class="w-full p-4 bg-slate-50 border rounded-xl font-bold" rows="3">${config.runningText}</textarea></div>
                                 <div class="grid grid-cols-2 gap-6">
                                     <div>
                                         <label class="block text-xs font-bold text-slate-500 mb-2">TIPE MEDIA</label>
                                         <select id="f-vtype" class="w-full p-4 bg-slate-50 border rounded-xl font-bold">
-                                            <option value="youtube" ${config.mediaType==='youtube'?'selected':''}>Video YouTube (Gunakan ID)</option>
-                                            <option value="slideshow" ${config.mediaType==='slideshow'?'selected':''}>Slideshow Gambar (Gunakan URL)</option>
+                                            <option value="youtube" ${config.mediaType==='youtube'?'selected':''}>YouTube</option>
+                                            <option value="slideshow" ${config.mediaType==='slideshow'?'selected':''}>Slideshow</option>
                                         </select>
                                     </div>
-                                    <div>
-                                        <label class="block text-xs font-bold text-slate-500 mb-2">SUMBER (ID/URL Dipisah Koma)</label>
-                                        <input id="f-vsource" class="w-full p-4 bg-slate-50 border rounded-xl" value="${config.mediaSource}">
-                                    </div>
+                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">SUMBER (ID/URL)</label><input id="f-vsource" class="w-full p-4 bg-slate-50 border rounded-xl" value="${config.mediaSource}"></div>
                                 </div>
-                                <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800"><i class="fa-solid fa-circle-info mr-2"></i><b>Tip Lokal:</b> Untuk menampilkan foto dari PC Kiosk secara langsung (tanpa internet), ubah tipe ke Slideshow dan masukkan URL lokal misal: <code>file:///C:/foto/promo1.jpg, file:///C:/foto/promo2.jpg</code> (Pastikan Kiosk dibuka di browser yang mengizinkan file lokal).</div>
                             </div>
                         </div>
 
-                        <!-- TAB 4: PRINTER -->
                         <div id="tab-printer" class="tab-content max-w-4xl pt-16">
                             <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Pengaturan Thermal Printer</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-500 mb-2">UKURAN KERTAS PRINTER</label>
-                                    <select id="f-psize" class="w-full p-4 bg-slate-50 border rounded-xl font-bold">
-                                        <option value="58mm" ${config.printerSize==='58mm'?'selected':''}>Standard Kecil (58mm)</option>
-                                        <option value="80mm" ${config.printerSize==='80mm'?'selected':''}>Lebar (80mm)</option>
-                                    </select>
+                                    <label class="block text-xs font-bold text-slate-500 mb-2">UKURAN KERTAS</label>
+                                    <select id="f-psize" class="w-full p-4 bg-slate-50 border rounded-xl font-bold"><option value="58mm" ${config.printerSize==='58mm'?'selected':''}>58mm</option><option value="80mm" ${config.printerSize==='80mm'?'selected':''}>80mm</option></select>
                                 </div>
                                 <div class="grid grid-cols-2 gap-6">
-                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">HEADER CETAKAN</label><textarea id="f-cheader" class="w-full p-4 bg-slate-50 border rounded-xl font-mono text-sm" rows="3">${config.receiptTemplate.header}</textarea></div>
-                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">FOOTER CETAKAN</label><textarea id="f-cfooter" class="w-full p-4 bg-slate-50 border rounded-xl font-mono text-sm" rows="3">${config.receiptTemplate.footer}</textarea></div>
+                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">HEADER</label><textarea id="f-cheader" class="w-full p-4 bg-slate-50 border rounded-xl text-sm" rows="3">${config.receiptTemplate.header}</textarea></div>
+                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">FOOTER</label><textarea id="f-cfooter" class="w-full p-4 bg-slate-50 border rounded-xl text-sm" rows="3">${config.receiptTemplate.footer}</textarea></div>
                                 </div>
-                                <div><label class="block text-xs font-bold text-slate-500 mb-2">TEKS DISCLAIMER BAWAH</label><input id="f-cdisc" class="w-full p-4 bg-slate-50 border rounded-xl italic" value="${config.receiptTemplate.disclaimer}"></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">DISCLAIMER</label><input id="f-cdisc" class="w-full p-4 bg-slate-50 border rounded-xl italic" value="${config.receiptTemplate.disclaimer}"></div>
                             </div>
                         </div>
 
-                        <!-- TAB 5: COUNTER -->
                         <div id="tab-counter" class="tab-content max-w-4xl pt-16">
                             <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Manajemen Loket & Staff</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-500 mb-2">DAFTAR LOKET AKTIF (Pisahkan dengan koma)</label>
-                                    <textarea id="f-counters" class="w-full p-4 bg-slate-50 border rounded-xl font-bold" rows="3">${config.counters.join(', ')}</textarea>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-500 mb-2">TEMA TAMPILAN DASHBOARD STAFF</label>
-                                    <select id="f-ctheme" class="w-full p-4 bg-slate-50 border rounded-xl font-bold">
-                                        <option value="light" ${config.counterTheme==='light'?'selected':''}>Light Mode (Bersih & Putih)</option>
-                                        <option value="dark" ${config.counterTheme==='dark'?'selected':''}>Dark Mode (Elegan Gelap)</option>
-                                        <option value="brand" ${config.counterTheme==='brand'?'selected':''}>Brand Mode (Warna Primary Bank)</option>
-                                    </select>
-                                </div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">DAFTAR LOKET AKTIF (KOMA)</label><textarea id="f-counters" class="w-full p-4 bg-slate-50 border rounded-xl font-bold" rows="3">${config.counters.join(', ')}</textarea></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">TEMA STAFF UI</label><select id="f-ctheme" class="w-full p-4 bg-slate-50 border rounded-xl font-bold"><option value="light" ${config.counterTheme==='light'?'selected':''}>Light Mode</option><option value="dark" ${config.counterTheme==='dark'?'selected':''}>Dark Mode</option><option value="brand" ${config.counterTheme==='brand'?'selected':''}>Brand Mode</option></select></div>
                             </div>
                         </div>
 
-                        <!-- TAB 6: LAPORAN -->
+                        <!-- TAB 6: ADVANCED ANALYTICS (NEW) -->
                         <div id="tab-report" class="tab-content w-full pt-16">
-                            <div class="flex justify-between items-center mb-8 border-b pb-4">
-                                <h2 class="text-3xl font-black text-slate-800">Database & Laporan SLA</h2>
-                                <button onclick="exportCSV()" class="bg-emerald-100 text-emerald-700 px-6 py-2 rounded-xl font-bold border border-emerald-200 hover:bg-emerald-200"><i class="fa-solid fa-file-csv mr-2"></i> Export Data CSV</button>
+                            <div class="flex justify-between items-center mb-6">
+                                <h2 class="text-3xl font-black text-slate-800">Advanced SLA Analytics</h2>
+                                <button onclick="exportCSV()" class="bg-emerald-100 text-emerald-700 px-6 py-2 rounded-xl font-bold border border-emerald-200 hover:bg-emerald-200"><i class="fa-solid fa-file-csv mr-2"></i> Export Laporan</button>
                             </div>
                             
-                            <div class="grid grid-cols-4 gap-6 mb-8">
-                                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100"><div class="text-xs font-bold text-slate-400">Total Transaksi</div><div id="r-total" class="text-4xl font-black">0</div></div>
-                                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100"><div class="text-xs font-bold text-slate-400">Dilayani Teller</div><div id="r-teller" class="text-4xl font-black text-primary">0</div></div>
-                                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100"><div class="text-xs font-bold text-slate-400">Dilayani CS</div><div id="r-cs" class="text-4xl font-black text-secondary">0</div></div>
-                                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                                    <div class="text-xs font-bold text-slate-400 mb-2">Grafik Layanan Hari Ini</div>
-                                    <div class="h-12 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                                        <div id="bar-t" class="h-full bg-primary" style="width:50%"></div><div id="bar-c" class="h-full bg-secondary" style="width:50%"></div>
-                                    </div>
-                                </div>
+                            <!-- Date Filters -->
+                            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-4 items-end mb-6">
+                                <div><label class="block text-xs font-bold text-slate-500 mb-1">Dari Tanggal</label><input type="date" id="filter-start" class="p-2 border rounded-lg bg-slate-50 font-bold text-sm"></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-1">Sampai Tanggal</label><input type="date" id="filter-end" class="p-2 border rounded-lg bg-slate-50 font-bold text-sm"></div>
+                                <button onclick="applyReportFilter()" class="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-700 h-[42px]"><i class="fa-solid fa-filter mr-2"></i> Terapkan Filter</button>
                             </div>
 
-                            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[600px]">
+                            <!-- Dynamic Operational Staff Stats -->
+                            <div class="grid grid-cols-5 gap-4 mb-6" id="dynamic-staff-stats">
+                                <!-- Populated dynamically by JS to include ALL staff -->
+                            </div>
+
+                            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[500px]">
                                 <div class="flex-grow overflow-auto rounded-xl border border-slate-200">
                                     <table class="w-full text-left text-sm" id="reportTable">
                                         <thead class="bg-slate-100 sticky top-0 z-10">
                                             <tr class="text-slate-600 font-bold">
-                                                <th class="p-4 border-b">TANGGAL & WAKTU CETAK</th>
+                                                <th class="p-4 border-b">TANGGAL/WAKTU CETAK</th>
                                                 <th class="p-4 border-b">WAKTU PANGGIL</th>
                                                 <th class="p-4 border-b">TIKET & LOKET</th>
                                                 <th class="p-4 border-b">KEPERLUAN</th>
@@ -541,56 +584,114 @@
             loadAdminReports();
         }
 
+        // Lock Screen Logic
+        function renderAdminLock(el) {
+            document.getElementById('top-nav').style.display = 'none';
+            el.innerHTML = `
+                <div class="h-full flex items-center justify-center bg-slate-900">
+                    <div class="bg-white p-10 rounded-3xl shadow-2xl text-center max-w-sm w-full">
+                        <i class="fa-solid fa-lock text-6xl text-primary mb-6"></i>
+                        <h2 class="text-2xl font-black text-slate-800 mb-2">Admin Akses</h2>
+                        <p class="text-sm text-slate-500 font-medium mb-8">Masukkan PIN Otorisasi (Default: 123456)</p>
+                        <input type="password" id="admin-pin" class="w-full text-center text-3xl font-black tracking-[1em] p-4 bg-slate-50 border-2 rounded-xl mb-6 outline-none focus:border-primary" maxlength="6">
+                        <button onclick="checkPin()" class="w-full bg-primary text-white py-4 rounded-xl font-bold hover:bg-blue-800">BUKA DASHBOARD</button>
+                    </div>
+                </div>
+            `;
+        }
+        function checkPin() {
+            if(document.getElementById('admin-pin').value === '123456') { sessionStorage.setItem('adminUnlocked', 'true'); document.getElementById('top-nav').style.display = 'flex'; renderAdmin(document.getElementById('app-container')); }
+            else { Swal.fire('Ditolak', 'PIN Salah', 'error'); document.getElementById('admin-pin').value = ''; }
+        }
+        function lockAdmin() { sessionStorage.removeItem('adminUnlocked'); renderAdminLock(document.getElementById('app-container')); }
+
         function switchTab(tabId, btn) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            btn.classList.add('active');
+            document.getElementById(tabId).classList.add('active'); btn.classList.add('active');
         }
 
-        let reportData = [];
+        // Advanced Analytics Logic
+        let filteredData = [];
         async function loadAdminReports() {
             try {
                 const res = await fetch(`${API_URL}?action=getReports`);
-                const logs = await res.json();
-                reportData = logs; // Save for export
+                rawReportData = await res.json();
                 
-                document.getElementById('r-total').innerText = logs.length;
-                let tCount = 0, cCount = 0;
-                const tbody = document.getElementById('r-table-body');
-                tbody.innerHTML = '';
-
-                logs.reverse().forEach(row => {
-                    if(row[2] === 'teller') tCount++; else cCount++;
-                    const printDate = row[0] ? new Date(row[0]).toLocaleString('id-ID') : '-';
-                    const callDate = row[7] ? new Date(row[7]).toLocaleTimeString('id-ID') : '<span class="text-slate-300 italic">Menunggu</span>';
-                    const photoHtml = row[5] ? `<img src="${row[5]}" class="w-12 h-12 object-cover rounded-full mx-auto">` : '-';
-                    
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td class="p-4 font-medium text-slate-600">${printDate}</td>
-                        <td class="p-4 font-bold text-slate-800">${callDate}</td>
-                        <td class="p-4"><span class="bg-${row[2]==='teller'?'blue':'orange'}-100 text-${row[2]==='teller'?'primary':'secondary'} px-3 py-1 rounded-lg font-black">${row[1]}</span><div class="text-xs mt-1 font-bold text-slate-400">${row[3] || ''}</div></td>
-                        <td class="p-4 font-medium text-slate-600">${row[6]}</td>
-                        <td class="p-4 text-center">${photoHtml}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                
-                document.getElementById('r-teller').innerText = tCount; document.getElementById('r-cs').innerText = cCount;
-                if(logs.length > 0){ document.getElementById('bar-t').style.width = (tCount/logs.length*100)+'%'; document.getElementById('bar-c').style.width = (cCount/logs.length*100)+'%'; }
+                // Set default dates (Today)
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('filter-start').value = today;
+                document.getElementById('filter-end').value = today;
+                applyReportFilter();
             } catch(e){}
         }
 
-        function exportCSV() {
-            if(reportData.length === 0) return Swal.fire('Kosong', 'Tidak ada data untuk di-export.', 'info');
-            let csvContent = "data:text/csv;charset=utf-8,Waktu Cetak,Nomor Tiket,Tipe,Nama Loket,Status,Keperluan,Waktu Panggil\n";
-            reportData.forEach(row => {
-                let rowStr = `${row[0]},${row[1]},${row[2]},${row[3]},${row[4]},"${row[6]}",${row[7]}`;
-                csvContent += rowStr + "\r\n";
+        function applyReportFilter() {
+            const start = new Date(document.getElementById('filter-start').value); start.setHours(0,0,0,0);
+            const end = new Date(document.getElementById('filter-end').value); end.setHours(23,59,59,999);
+            
+            filteredData = rawReportData.filter(row => {
+                if(!row[0]) return false;
+                const rDate = new Date(row[0]); return rDate >= start && rDate <= end;
             });
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", "Laporan_Antrian_Bankaltimtara.csv");
+            renderReportTable();
+        }
+
+        function renderReportTable() {
+            const tbody = document.getElementById('r-table-body');
+            tbody.innerHTML = '';
+            
+            // Generate Dynamic Stats for ALL Operational Staff
+            let staffStats = {};
+            let total = filteredData.length;
+
+            filteredData.slice().reverse().forEach(row => {
+                // Ensure all operational staff are accounted for (Teller 1, Teller 2, CS 1, etc.)
+                let staffName = row[3] || 'Belum Dipanggil';
+                if(row[4] === 'TRANSFERRED') staffName = 'Ditransfer';
+                staffStats[staffName] = (staffStats[staffName] || 0) + 1;
+
+                const printDateStr = row[0] ? new Date(row[0]).toLocaleString('id-ID') : '-';
+                const callDateStr = row[7] ? new Date(row[7]).toLocaleTimeString('id-ID') : '<span class="text-slate-300 italic">Menunggu</span>';
+                const photoHtml = row[5] ? `<img src="${row[5]}" class="w-10 h-10 object-cover rounded-full mx-auto">` : '-';
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-4 font-medium text-slate-600">${printDateStr}</td>
+                    <td class="p-4 font-bold text-slate-800">${callDateStr}</td>
+                    <td class="p-4"><span class="bg-${row[2]==='teller'?'blue':'orange'}-100 text-${row[2]==='teller'?'primary':'secondary'} px-3 py-1 rounded-lg font-black">${row[1]}</span><div class="text-[10px] mt-1 font-bold text-slate-400 uppercase">${row[3] || ''}</div></td>
+                    <td class="p-4 font-medium text-slate-600">${row[6]}</td>
+                    <td class="p-4 text-center">${photoHtml}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Render Dynamic Staff Cards
+            const statsContainer = document.getElementById('dynamic-staff-stats');
+            let statsHtml = `
+                <div class="bg-primary p-4 rounded-2xl shadow-sm text-white">
+                    <div class="text-[10px] font-bold opacity-80 uppercase">Total Cetak Resi</div>
+                    <div class="text-3xl font-black">${total}</div>
+                </div>
+            `;
+            Object.keys(staffStats).forEach(name => {
+                if(name !== 'Belum Dipanggil' && name !== 'Ditransfer') {
+                    statsHtml += `
+                        <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
+                            <div class="text-[10px] font-bold text-slate-400 uppercase">${name}</div>
+                            <div class="text-3xl font-black text-slate-700">${staffStats[name]}</div>
+                        </div>
+                    `;
+                }
+            });
+            statsContainer.innerHTML = statsHtml;
+        }
+
+        function exportCSV() {
+            if(filteredData.length === 0) return Swal.fire('Kosong', 'Tidak ada data.', 'info');
+            let csvContent = "data:text/csv;charset=utf-8,Waktu Cetak,Nomor Tiket,Tipe,Nama Loket,Status,Keperluan,Waktu Panggil\n";
+            filteredData.forEach(row => { csvContent += `${row[0]},${row[1]},${row[2]},${row[3]},${row[4]},"${row[6]}",${row[7]}\r\n`; });
+            const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent)); link.setAttribute("download", "Laporan_Antrian_SLA.csv");
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
@@ -618,7 +719,6 @@
                 if(data.success) Swal.fire('Selesai!', data.msg, 'success');
             }
         }
-
         init();
     </script>
 </body>
