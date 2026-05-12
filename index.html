@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bankaltimtara Queue System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
+        body { font-family: 'Poppins', sans-serif; background: #f8fafc; }
+        .bg-blue-bank { background-color: #004A99; }
+        .bg-orange-bank { background-color: #F37021; }
+        .text-blue-bank { color: #004A99; }
+        .text-orange-bank { color: #F37021; }
+        .running-text { white-space: nowrap; animation: marquee 20s linear infinite; }
+        @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+        @media print { .no-print { display: none; } #print-area { display: block !important; } }
+    </style>
+</head>
+<body class="h-screen overflow-hidden flex flex-col">
+
+    <nav class="bg-blue-bank text-white p-4 shadow-lg flex justify-between items-center no-print">
+        <div class="flex items-center gap-4">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Bank_Kaltimtara_logo.svg/512px-Bank_Kaltimtara_logo.svg.png" class="h-10 brightness-200">
+            <span class="font-bold text-xl uppercase tracking-widest">KCP Babulu</span>
+        </div>
+        <div id="clock" class="font-mono text-lg"></div>
+    </nav>
+
+    <main id="app" class="flex-grow flex flex-col no-print"></main>
+
+    <div id="print-area" class="hidden text-center p-4 font-mono text-black" style="width: 58mm;">
+        <p>BANKALTIMTARA</p>
+        <p>KCP BABULU</p>
+        <hr>
+        <p class="text-xs">Nomor Antrian:</p>
+        <h1 id="p-ticket" class="text-4xl font-bold my-2"></h1>
+        <p id="p-type"></p>
+        <hr>
+        <p class="text-xs" id="p-date"></p>
+        <p class="text-[10px]">Silahkan menunggu antrian anda.</p>
+    </div>
+
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxDAZvMYENw9JWkoMcISQSD0cXZU3VCGaiqBURhIBS6ld8ei58WlyCHDRrh0ZgI0-P-fw/exec';
+        const params = new URLSearchParams(window.location.search);
+        const view = params.get('view') || 'kiosk';
+        const app = document.getElementById('app');
+
+        // Clock
+        setInterval(() => {
+            document.getElementById('clock').innerText = new Date().toLocaleTimeString('id-ID');
+        }, 1000);
+
+        // --- 1. VIEW: KIOSK (MONITOR 1) ---
+        if (view === 'kiosk') {
+            app.innerHTML = `
+                <div class="flex-grow flex flex-col items-center justify-center gap-10">
+                    <video id="webcam" autoplay playsinline class="w-64 h-48 rounded-full border-4 border-blue-bank object-cover bg-gray-200 shadow-xl"></video>
+                    <h1 class="text-4xl font-bold text-gray-800">Selamat Datang, Silahkan Pilih Layanan</h1>
+                    <div class="flex gap-8 w-full max-w-5xl px-10">
+                        <button onclick="takeQueue('teller')" class="flex-1 h-80 bg-blue-bank text-white rounded-3xl shadow-2xl flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform">
+                            <i class="fa-solid fa-vault text-8xl"></i>
+                            <span class="text-5xl font-black">TELLER</span>
+                        </button>
+                        <button onclick="takeQueue('cs')" class="flex-1 h-80 bg-orange-bank text-white rounded-3xl shadow-2xl flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform">
+                            <i class="fa-solid fa-user-tie text-8xl"></i>
+                            <span class="text-5xl font-black">CUSTOMER SERVICE</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+            initCamera();
+        }
+
+        // --- 2. VIEW: DISPLAY (MONITOR 2) ---
+        else if (view === 'display') {
+            app.innerHTML = `
+                <div class="flex-grow grid grid-cols-12 h-full">
+                    <div class="col-span-8 flex flex-col border-r bg-black">
+                        <div class="flex-grow bg-black relative">
+                            <iframe id="promo-video" class="w-full h-full" src="https://www.youtube.com/embed/VIDEO_ID?autoplay=1&mute=1&loop=1&playlist=VIDEO_ID" frameborder="0"></iframe>
+                        </div>
+                        <div class="h-20 bg-orange-bank overflow-hidden flex items-center">
+                            <div class="running-text text-white text-3xl font-bold">
+                                Selamat Datang di Bankaltimtara KCP Babulu - Melayani Dengan Sepenuh Hati - Gunakan Selalu Aplikasi DG Bankaltimtara untuk Kemudahan Transaksi Anda -
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-span-4 bg-white flex flex-col p-6 text-center">
+                        <h2 class="text-2xl font-bold text-gray-500 uppercase">Sedang Melayani</h2>
+                        <div class="flex-grow flex flex-col justify-center items-center">
+                            <div id="d-photo" class="w-48 h-48 rounded-full border-4 border-orange-bank mb-4 bg-gray-100 flex items-center justify-center overflow-hidden">
+                                <i class="fa-solid fa-user text-6xl text-gray-300"></i>
+                            </div>
+                            <div id="d-ticket" class="text-[120px] font-black text-blue-bank leading-none">-</div>
+                            <div id="d-counter" class="text-4xl font-bold text-orange-bank mt-4">LOKET -</div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mt-auto border-t pt-4" id="d-mini-list">
+                            </div>
+                    </div>
+                </div>
+            `;
+            setInterval(pollState, 3000);
+        }
+
+        // --- 3. VIEW: STAFF (TELLER/CS) ---
+        else if (view === 'staff') {
+            const role = params.get('role');
+            const id = params.get('id');
+            app.innerHTML = `
+                <div class="flex-grow flex items-center justify-center p-10 bg-gray-100">
+                    <div class="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-xl text-center">
+                        <div class="text-gray-400 font-bold mb-2 tracking-widest">${role.toUpperCase()} LOKET ${id}</div>
+                        <h2 class="text-3xl font-bold text-blue-bank mb-8">Pemanggil Antrian</h2>
+                        <div id="s-current-photo" class="w-64 h-64 bg-gray-200 mx-auto rounded-xl mb-6 overflow-hidden flex items-center justify-center">
+                            <i class="fa-solid fa-user text-8xl text-gray-400"></i>
+                        </div>
+                        <div id="s-current-ticket" class="text-7xl font-black text-gray-800 mb-8">-</div>
+                        <button onclick="callNext('${role}', '${role.toUpperCase()} ${id}')" class="w-full py-6 bg-blue-bank text-white text-3xl font-bold rounded-2xl hover:bg-blue-900 shadow-lg active:scale-95 transition-all">
+                            PANGGIL BERIKUTNYA
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- FUNCTIONS ---
+
+        async function initCamera() {
+            const video = document.getElementById('webcam');
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+        }
+
+        async function takeQueue(type) {
+            const video = document.getElementById('webcam');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            const photo = canvas.toDataURL('image/jpeg', 0.5);
+
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'generate', type, photo })
+                });
+                const data = await res.json();
+                if(data.success) {
+                    printTicket(data.noAntrian, type.toUpperCase());
+                }
+            } catch (e) { alert("Gagal koneksi ke server"); }
+        }
+
+        function printTicket(no, type) {
+            document.getElementById('p-ticket').innerText = no;
+            document.getElementById('p-type').innerText = type;
+            document.getElementById('p-date').innerText = new Date().toLocaleString();
+            window.print();
+        }
+
+        async function callNext(type, counterName) {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'call', type, counterName })
+            });
+            const data = await res.json();
+            if(data.success) {
+                document.getElementById('s-current-ticket').innerText = data.ticket;
+                if(data.photo) document.getElementById('s-current-photo').innerHTML = `<img src="${data.photo}" class="w-full h-full object-cover">`;
+            } else {
+                alert(data.msg);
+            }
+        }
+
+        let lastTicket = "";
+        async function pollState() {
+            const res = await fetch(API_URL + "?action=getState");
+            const state = await res.json();
+            const now = state.nowServing;
+
+            if (now.ticket !== lastTicket && now.ticket !== "-") {
+                document.getElementById('d-ticket').innerText = now.ticket;
+                document.getElementById('d-counter').innerText = now.counter;
+                if(now.photo) document.getElementById('d-photo').innerHTML = `<img src="${now.photo}" class="w-full h-full object-cover">`;
+                announce(now.ticket, now.counter);
+                lastTicket = now.ticket;
+            }
+        }
+
+        function announce(ticket, counter) {
+            const text = `Nomor antrian ${ticket.replace('-', ' ')}, silahkan menuju ke ${counter}`;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'id-ID';
+            utterance.rate = 0.9;
+            speechSynthesis.speak(utterance);
+        }
+    </script>
+</body>
+</html>
