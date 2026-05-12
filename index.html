@@ -3,200 +3,345 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bankaltimtara Queue System</title>
+    <title>Sistem Antrian Bankaltimtara</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
-        body { font-family: 'Poppins', sans-serif; background: #f8fafc; }
-        .bg-blue-bank { background-color: #004A99; }
-        .bg-orange-bank { background-color: #F37021; }
-        .text-blue-bank { color: #004A99; }
-        .text-orange-bank { color: #F37021; }
-        .running-text { white-space: nowrap; animation: marquee 20s linear infinite; }
-        @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
-        @media print { .no-print { display: none; } #print-area { display: block !important; } }
+        @import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;600;800&display=swap');
+        :root { --p-color: #004A99; --s-color: #F37021; }
+        body { font-family: 'Urbanist', sans-serif; transition: all 0.3s ease; }
+        .bg-primary { background-color: var(--p-color); }
+        .bg-secondary { background-color: var(--s-color); }
+        .text-primary { color: var(--p-color); }
+        .text-secondary { color: var(--s-color); }
+        .marquee { white-space: nowrap; animation: scroll 25s linear infinite; }
+        @keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
     </style>
 </head>
-<body class="h-screen overflow-hidden flex flex-col">
+<body class="h-screen flex flex-col bg-slate-50">
 
-    <nav class="bg-blue-bank text-white p-4 shadow-lg flex justify-between items-center no-print">
-        <div class="flex items-center gap-4">
+    <nav class="bg-primary text-white p-4 flex justify-between items-center shadow-xl">
+        <div class="flex items-center gap-3">
             <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Bank_Kaltimtara_logo.svg/512px-Bank_Kaltimtara_logo.svg.png" class="h-10 brightness-200">
-            <span class="font-bold text-xl uppercase tracking-widest">KCP Babulu</span>
+            <span id="nav-bank-name" class="font-bold text-xl uppercase tracking-tighter"></span>
         </div>
-        <div id="clock" class="font-mono text-lg"></div>
+        <div id="nav-info" class="flex gap-6 items-center">
+            <div id="clock" class="text-xl font-mono bg-black/20 px-4 py-1 rounded">00:00:00</div>
+        </div>
     </nav>
 
-    <main id="app" class="flex-grow flex flex-col no-print"></main>
-
-    <div id="print-area" class="hidden text-center p-4 font-mono text-black" style="width: 58mm;">
-        <p>BANKALTIMTARA</p>
-        <p>KCP BABULU</p>
-        <hr>
-        <p class="text-xs">Nomor Antrian:</p>
-        <h1 id="p-ticket" class="text-4xl font-bold my-2"></h1>
-        <p id="p-type"></p>
-        <hr>
-        <p class="text-xs" id="p-date"></p>
-        <p class="text-[10px]">Silahkan menunggu antrian anda.</p>
-    </div>
+    <main id="app-container" class="flex-grow overflow-auto"></main>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbxDAZvMYENw9JWkoMcISQSD0cXZU3VCGaiqBURhIBS6ld8ei58WlyCHDRrh0ZgI0-P-fw/exec';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxDAZvMYENw9JWkoMcISQSD0cXZU3VCGaiqBURhIBS6ld8ei58WlyCHDRrh0ZgI0-P-fw/exec'; 
         const params = new URLSearchParams(window.location.search);
         const view = params.get('view') || 'kiosk';
-        const app = document.getElementById('app');
+        let config = {};
 
-        // Clock
-        setInterval(() => {
-            document.getElementById('clock').innerText = new Date().toLocaleTimeString('id-ID');
-        }, 1000);
+        // INITS
+        async function init() {
+            const res = await fetch(`${API_URL}?action=getConfig`);
+            config = await res.json();
+            updateBrand();
+            renderView();
+            setInterval(updateClock, 1000);
+        }
 
-        // --- 1. VIEW: KIOSK (MONITOR 1) ---
-        if (view === 'kiosk') {
-            app.innerHTML = `
-                <div class="flex-grow flex flex-col items-center justify-center gap-10">
-                    <video id="webcam" autoplay playsinline class="w-64 h-48 rounded-full border-4 border-blue-bank object-cover bg-gray-200 shadow-xl"></video>
-                    <h1 class="text-4xl font-bold text-gray-800">Selamat Datang, Silahkan Pilih Layanan</h1>
-                    <div class="flex gap-8 w-full max-w-5xl px-10">
-                        <button onclick="takeQueue('teller')" class="flex-1 h-80 bg-blue-bank text-white rounded-3xl shadow-2xl flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform">
-                            <i class="fa-solid fa-vault text-8xl"></i>
-                            <span class="text-5xl font-black">TELLER</span>
-                        </button>
-                        <button onclick="takeQueue('cs')" class="flex-1 h-80 bg-orange-bank text-white rounded-3xl shadow-2xl flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform">
-                            <i class="fa-solid fa-user-tie text-8xl"></i>
-                            <span class="text-5xl font-black">CUSTOMER SERVICE</span>
-                        </button>
+        function updateClock() {
+            const el = document.getElementById('clock');
+            if(el) el.innerText = new Date().toLocaleTimeString('id-ID');
+        }
+
+        function updateBrand() {
+            document.documentElement.style.setProperty('--p-color', config.primaryColor);
+            document.documentElement.style.setProperty('--s-color', config.secondaryColor);
+            const el = document.getElementById('nav-bank-name');
+            if(el) el.innerText = config.bankName;
+        }
+
+        function renderView() {
+            const container = document.getElementById('app-container');
+            if(view === 'kiosk') renderKiosk(container);
+            else if(view === 'display') renderDisplay(container);
+            else if(view === 'staff') renderStaff(container);
+            else if(view === 'admin') renderAdmin(container);
+        }
+
+        // --- 1. VIEW KIOSK ---
+        async function renderKiosk(el) {
+            el.innerHTML = `
+                <div class="h-full flex flex-col items-center justify-center p-10 text-center gap-8">
+                    <div class="relative">
+                        <video id="cam" autoplay class="w-72 h-72 rounded-full border-8 border-primary object-cover shadow-2xl bg-slate-200"></video>
+                        <div class="absolute -bottom-4 bg-secondary text-white px-6 py-1 rounded-full font-bold">KAMERA AKTIF</div>
+                    </div>
+                    <h1 class="text-5xl font-black text-slate-800">AMBIL NOMOR ANTRIAN</h1>
+                    <div class="grid grid-cols-2 gap-10 w-full max-w-5xl">
+                        <div onclick="takeTicket('teller')" class="bg-primary p-12 rounded-3xl text-white cursor-pointer hover:scale-105 transition shadow-2xl">
+                            <i class="fa-solid fa-vault text-8xl mb-4"></i>
+                            <div class="text-4xl font-bold">TELLER</div>
+                            <div class="text-sm opacity-70 mt-2">Setoran, Penarikan, Transfer</div>
+                        </div>
+                        <div onclick="takeTicket('cs')" class="bg-secondary p-12 rounded-3xl text-white cursor-pointer hover:scale-105 transition shadow-2xl">
+                            <i class="fa-solid fa-user-tie text-8xl mb-4"></i>
+                            <div class="text-4xl font-bold">CUSTOMER SERVICE</div>
+                            <div class="text-sm opacity-70 mt-2">Buka Rekening, Komplain, Ganti Kartu</div>
+                        </div>
+                    </div>
+                    <div id="service-select" class="mt-4 hidden bg-white p-6 rounded-xl shadow-lg border-2 border-primary">
+                        <p class="mb-4 font-bold">Detail Keperluan:</p>
+                        <select id="spec-service" class="p-3 border rounded w-64 text-lg">
+                            <option>Umum / Setoran</option>
+                            <option>Pembukaan Rekening</option>
+                            <option>Ganti Buku / Kartu</option>
+                            <option>Kredit / Pinjaman</option>
+                        </select>
                     </div>
                 </div>
             `;
-            initCamera();
+            const stream = await navigator.mediaDevices.getUserMedia({video: true});
+            document.getElementById('cam').srcObject = stream;
         }
 
-        // --- 2. VIEW: DISPLAY (MONITOR 2) ---
-        else if (view === 'display') {
-            app.innerHTML = `
-                <div class="flex-grow grid grid-cols-12 h-full">
-                    <div class="col-span-8 flex flex-col border-r bg-black">
-                        <div class="flex-grow bg-black relative">
-                            <iframe id="promo-video" class="w-full h-full" src="https://www.youtube.com/embed/VIDEO_ID?autoplay=1&mute=1&loop=1&playlist=VIDEO_ID" frameborder="0"></iframe>
-                        </div>
-                        <div class="h-20 bg-orange-bank overflow-hidden flex items-center">
-                            <div class="running-text text-white text-3xl font-bold">
-                                Selamat Datang di Bankaltimtara KCP Babulu - Melayani Dengan Sepenuh Hati - Gunakan Selalu Aplikasi DG Bankaltimtara untuk Kemudahan Transaksi Anda -
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-span-4 bg-white flex flex-col p-6 text-center">
-                        <h2 class="text-2xl font-bold text-gray-500 uppercase">Sedang Melayani</h2>
-                        <div class="flex-grow flex flex-col justify-center items-center">
-                            <div id="d-photo" class="w-48 h-48 rounded-full border-4 border-orange-bank mb-4 bg-gray-100 flex items-center justify-center overflow-hidden">
-                                <i class="fa-solid fa-user text-6xl text-gray-300"></i>
-                            </div>
-                            <div id="d-ticket" class="text-[120px] font-black text-blue-bank leading-none">-</div>
-                            <div id="d-counter" class="text-4xl font-bold text-orange-bank mt-4">LOKET -</div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4 mt-auto border-t pt-4" id="d-mini-list">
-                            </div>
-                    </div>
-                </div>
-            `;
-            setInterval(pollState, 3000);
-        }
-
-        // --- 3. VIEW: STAFF (TELLER/CS) ---
-        else if (view === 'staff') {
-            const role = params.get('role');
-            const id = params.get('id');
-            app.innerHTML = `
-                <div class="flex-grow flex items-center justify-center p-10 bg-gray-100">
-                    <div class="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-xl text-center">
-                        <div class="text-gray-400 font-bold mb-2 tracking-widest">${role.toUpperCase()} LOKET ${id}</div>
-                        <h2 class="text-3xl font-bold text-blue-bank mb-8">Pemanggil Antrian</h2>
-                        <div id="s-current-photo" class="w-64 h-64 bg-gray-200 mx-auto rounded-xl mb-6 overflow-hidden flex items-center justify-center">
-                            <i class="fa-solid fa-user text-8xl text-gray-400"></i>
-                        </div>
-                        <div id="s-current-ticket" class="text-7xl font-black text-gray-800 mb-8">-</div>
-                        <button onclick="callNext('${role}', '${role.toUpperCase()} ${id}')" class="w-full py-6 bg-blue-bank text-white text-3xl font-bold rounded-2xl hover:bg-blue-900 shadow-lg active:scale-95 transition-all">
-                            PANGGIL BERIKUTNYA
-                        </button>
-                    </div>
-                </div>
-            `;
-        }
-
-        // --- FUNCTIONS ---
-
-        async function initCamera() {
-            const video = document.getElementById('webcam');
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            video.srcObject = stream;
-        }
-
-        async function takeQueue(type) {
-            const video = document.getElementById('webcam');
+        async function takeTicket(type) {
+            const video = document.getElementById('cam');
             const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0);
             const photo = canvas.toDataURL('image/jpeg', 0.5);
+            const service = document.getElementById('spec-service')?.value || "Umum";
 
-            try {
-                const res = await fetch(API_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({ action: 'generate', type, photo })
-                });
-                const data = await res.json();
-                if(data.success) {
-                    printTicket(data.noAntrian, type.toUpperCase());
-                }
-            } catch (e) { alert("Gagal koneksi ke server"); }
-        }
-
-        function printTicket(no, type) {
-            document.getElementById('p-ticket').innerText = no;
-            document.getElementById('p-type').innerText = type;
-            document.getElementById('p-date').innerText = new Date().toLocaleString();
-            window.print();
-        }
-
-        async function callNext(type, counterName) {
             const res = await fetch(API_URL, {
                 method: 'POST',
-                body: JSON.stringify({ action: 'call', type, counterName })
+                body: JSON.stringify({ action: 'generate', type, photo, service })
+            });
+            const data = await res.json();
+            if(data.success) alert("ANTRIAN DICETAK: " + data.ticket);
+        }
+
+        // --- 2. VIEW DISPLAY (BANKING HALL) ---
+        function renderDisplay(el) {
+            el.className = "flex-grow flex flex-col bg-black overflow-hidden";
+            el.innerHTML = `
+                <div class="flex-grow grid grid-cols-12">
+                    <div class="col-span-8 bg-black flex flex-col">
+                        <div id="video-box" class="flex-grow">
+                            <iframe class="w-full h-full" src="https://www.youtube.com/embed/${config.videoID}?autoplay=1&mute=1&loop=1&playlist=${config.videoID}" frameborder="0"></iframe>
+                        </div>
+                    </div>
+                    <div class="col-span-4 bg-white flex flex-col p-8 text-center border-l-8 border-secondary">
+                        <h2 class="text-3xl font-bold text-slate-400 mb-6 tracking-widest uppercase">Sedang Melayani</h2>
+                        <div class="flex-grow flex flex-col justify-center items-center gap-4">
+                            <div id="d-photo" class="w-64 h-64 rounded-3xl bg-slate-100 overflow-hidden border-4 border-primary shadow-xl">
+                                <img src="" id="d-img" class="w-full h-full object-cover hidden">
+                                <i id="d-icon" class="fa-solid fa-user text-9xl text-slate-200 mt-12"></i>
+                            </div>
+                            <div id="d-ticket" class="text-[140px] font-black text-primary leading-none">-</div>
+                            <div id="d-service" class="text-2xl font-bold text-slate-500 italic">-</div>
+                            <div id="d-counter" class="text-5xl font-black text-secondary bg-secondary/10 px-8 py-2 rounded-full mt-4">LOKET -</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="h-24 bg-secondary flex items-center overflow-hidden border-t-4 border-white/20">
+                    <div class="marquee text-4xl text-white font-black uppercase italic">${config.runningText}</div>
+                </div>
+            `;
+            setInterval(pollDisplay, 3000);
+        }
+
+        let lastT = "";
+        async function pollDisplay() {
+            const res = await fetch(`${API_URL}?action=getState`);
+            const state = await res.json();
+            const now = state.nowServing;
+            if(now.ticket !== lastT && now.ticket !== "-") {
+                document.getElementById('d-ticket').innerText = now.ticket;
+                document.getElementById('d-counter').innerText = now.counter;
+                document.getElementById('d-service').innerText = now.service;
+                if(now.photo) {
+                    document.getElementById('d-img').src = now.photo;
+                    document.getElementById('d-img').classList.remove('hidden');
+                    document.getElementById('d-icon').classList.add('hidden');
+                }
+                speak(now.ticket, now.counter);
+                lastT = now.ticket;
+            }
+        }
+
+        function speak(t, c) {
+            const msg = new SpeechSynthesisUtterance(`Nomor antrian ${t.replace('-', ' ')}, silahkan menuju ke ${c}`);
+            msg.lang = 'id-ID'; msg.rate = config.voiceRate; msg.pitch = config.voicePitch;
+            speechSynthesis.speak(msg);
+        }
+
+        // --- 3. VIEW STAFF (TELLER/CS) ---
+        function renderStaff(el) {
+            const role = params.get('role') || 'teller';
+            const id = params.get('id') || '1';
+            el.innerHTML = `
+                <div class="h-full flex items-center justify-center p-6 bg-slate-100">
+                    <div class="bg-white p-10 rounded-[40px] shadow-2xl w-full max-w-2xl border-b-[12px] border-primary">
+                        <div class="flex justify-between items-center mb-8">
+                            <span class="bg-primary/10 text-primary px-6 py-2 rounded-full font-bold text-xl uppercase tracking-widest">${role} Loket ${id}</span>
+                            <div class="text-slate-400 font-bold" id="s-status">ONLINE</div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-8 mb-10">
+                            <div id="s-photo" class="aspect-square bg-slate-50 rounded-3xl border-4 border-dashed border-slate-200 flex items-center justify-center overflow-hidden">
+                                <i class="fa-solid fa-camera text-6xl text-slate-200"></i>
+                            </div>
+                            <div class="flex flex-col justify-center">
+                                <div class="text-sm font-bold text-slate-400 uppercase">Nasabah Saat Ini:</div>
+                                <div id="s-ticket" class="text-8xl font-black text-slate-800">-</div>
+                                <div id="s-service" class="text-xl text-secondary font-bold">-</div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col gap-4">
+                            <button onclick="staffAction('call')" class="w-full py-6 bg-primary text-white text-3xl font-black rounded-2xl hover:brightness-110 shadow-lg active:scale-95 transition">PANGGIL BERIKUTNYA</button>
+                            <div class="grid grid-cols-2 gap-4">
+                                <button onclick="staffAction('recall')" class="py-4 bg-slate-800 text-white text-xl font-bold rounded-2xl hover:bg-black transition">PANGGIL ULANG</button>
+                                <button onclick="alert('Selesai')" class="py-4 bg-green-600 text-white text-xl font-bold rounded-2xl hover:bg-green-700 transition">TRANSAKSI SELESAI</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        let lastCalled = "";
+        async function staffAction(action) {
+            const role = params.get('role');
+            const id = params.get('id');
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                body: JSON.stringify({ 
+                    action, type: role, 
+                    counterName: `${role.toUpperCase()} ${id}`,
+                    lastTicket: lastCalled 
+                })
             });
             const data = await res.json();
             if(data.success) {
-                document.getElementById('s-current-ticket').innerText = data.ticket;
-                if(data.photo) document.getElementById('s-current-photo').innerHTML = `<img src="${data.photo}" class="w-full h-full object-cover">`;
+                lastCalled = data.ticket;
+                document.getElementById('s-ticket').innerText = data.ticket;
+                if(data.photo) document.getElementById('s-photo').innerHTML = `<img src="${data.photo}" class="w-full h-full object-cover">`;
             } else {
-                alert(data.msg);
+                alert(data.msg || "Gagal memanggil");
             }
         }
 
-        let lastTicket = "";
-        async function pollState() {
-            const res = await fetch(API_URL + "?action=getState");
-            const state = await res.json();
-            const now = state.nowServing;
+        // --- 4. VIEW ADMIN (MANAGEMENT & REPORTS) ---
+        function renderAdmin(el) {
+            el.innerHTML = `
+                <div class="p-8 max-w-6xl mx-auto">
+                    <h1 class="text-4xl font-black mb-8 text-primary uppercase italic">Management Control Panel</h1>
+                    
+                    <div class="grid grid-cols-12 gap-8">
+                        <div class="col-span-4 bg-white p-6 rounded-2xl shadow-xl flex flex-col gap-4 border-t-8 border-primary">
+                            <h2 class="font-black text-xl mb-2 underline decoration-secondary">PENGATURAN APLIKASI</h2>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-400">NAMA UNIT/BANK</label>
+                                <input id="f-bank" class="w-full p-2 border rounded" value="${config.bankName}">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-400">RUNNING TEXT</label>
+                                <textarea id="f-text" class="w-full p-2 border rounded">${config.runningText}</textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-400">YOUTUBE VIDEO ID</label>
+                                <input id="f-video" class="w-full p-2 border rounded" value="${config.videoID}">
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-400">PRIMARY COLOR</label>
+                                    <input type="color" id="f-c1" class="w-full h-10 border rounded" value="${config.primaryColor}">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-400">SECONDARY COLOR</label>
+                                    <input type="color" id="f-c2" class="w-full h-10 border rounded" value="${config.secondaryColor}">
+                                </div>
+                            </div>
+                            <button onclick="saveAdminConfig()" class="mt-4 bg-primary text-white py-3 font-bold rounded-xl shadow-lg">SIMPAN PERUBAHAN</button>
+                        </div>
 
-            if (now.ticket !== lastTicket && now.ticket !== "-") {
-                document.getElementById('d-ticket').innerText = now.ticket;
-                document.getElementById('d-counter').innerText = now.counter;
-                if(now.photo) document.getElementById('d-photo').innerHTML = `<img src="${now.photo}" class="w-full h-full object-cover">`;
-                announce(now.ticket, now.counter);
-                lastTicket = now.ticket;
-            }
+                        <div class="col-span-8 bg-white p-6 rounded-2xl shadow-xl border-t-8 border-secondary">
+                            <h2 class="font-black text-xl mb-6 underline decoration-primary">LAPORAN SLA & DATABASE NASABAH</h2>
+                            <div class="grid grid-cols-3 gap-4 mb-8">
+                                <div class="bg-slate-50 p-4 rounded-xl border">
+                                    <div class="text-slate-400 text-xs font-bold">TOTAL NASABAH</div>
+                                    <div id="r-total" class="text-3xl font-black">0</div>
+                                </div>
+                                <div class="bg-slate-50 p-4 rounded-xl border">
+                                    <div class="text-slate-400 text-xs font-bold">TELLER SERVED</div>
+                                    <div id="r-teller" class="text-3xl font-black text-primary">0</div>
+                                </div>
+                                <div class="bg-slate-50 p-4 rounded-xl border">
+                                    <div class="text-slate-400 text-xs font-bold">CS SERVED</div>
+                                    <div id="r-cs" class="text-3xl font-black text-secondary">0</div>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto h-96">
+                                <table class="w-full text-left text-sm">
+                                    <thead class="sticky top-0 bg-white shadow-sm">
+                                        <tr class="border-b text-slate-400 font-bold">
+                                            <th class="p-2">WAKTU</th>
+                                            <th class="p-2">TIKET</th>
+                                            <th class="p-2">KEPERLUAN</th>
+                                            <th class="p-2">FOTO</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="r-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            loadAdminReports();
         }
 
-        function announce(ticket, counter) {
-            const text = `Nomor antrian ${ticket.replace('-', ' ')}, silahkan menuju ke ${counter}`;
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'id-ID';
-            utterance.rate = 0.9;
-            speechSynthesis.speak(utterance);
+        async function saveAdminConfig() {
+            const newConfig = {
+                bankName: document.getElementById('f-bank').value,
+                runningText: document.getElementById('f-text').value,
+                videoID: document.getElementById('f-video').value,
+                primaryColor: document.getElementById('f-c1').value,
+                secondaryColor: document.getElementById('f-c2').value,
+                voiceRate: 0.9, voicePitch: 1
+            };
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'updateConfig', config: newConfig })
+            });
+            if(res.ok) { alert("Konfigurasi Berhasil Diperbarui!"); location.reload(); }
         }
+
+        async function loadAdminReports() {
+            const res = await fetch(`${API_URL}?action=getReports`);
+            const logs = await res.json();
+            const tbody = document.getElementById('r-table-body');
+            document.getElementById('r-total').innerText = logs.length;
+            
+            let tCount = 0, cCount = 0;
+            logs.reverse().forEach(row => {
+                if(row[2] === 'teller') tCount++; else cCount++;
+                const tr = document.createElement('tr');
+                tr.className = "border-b hover:bg-slate-50";
+                tr.innerHTML = `
+                    <td class="p-2">${new Date(row[0]).toLocaleTimeString()}</td>
+                    <td class="p-2 font-bold">${row[1]}</td>
+                    <td class="p-2">${row[6] || 'Umum'}</td>
+                    <td class="p-2"><img src="${row[5]}" class="h-10 w-10 rounded border object-cover"></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('r-teller').innerText = tCount;
+            document.getElementById('r-cs').innerText = cCount;
+        }
+
+        init();
     </script>
 </body>
 </html>
