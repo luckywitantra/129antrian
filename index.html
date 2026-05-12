@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Antrian Enterprise</title>
+    <title>Sistem Antrian Enterprise v9.1</title>
     <!-- Tailwind CSS & FontAwesome -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -13,25 +13,15 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800;900&display=swap');
         
-        :root { 
-            --p-color: #004A99; 
-            --s-color: #F37021; 
-        }
+        :root { --p-color: #004A99; --s-color: #F37021; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #F4F7FE; -webkit-font-smoothing: antialiased; }
         
-        body { 
-            font-family: 'Plus Jakarta Sans', sans-serif; 
-            background-color: #F4F7FE; 
-            -webkit-font-smoothing: antialiased; 
-        }
-        
-        /* Theming Utilities */
         .bg-primary { background-color: var(--p-color); } 
         .bg-secondary { background-color: var(--s-color); }
         .text-primary { color: var(--p-color); } 
         .text-secondary { color: var(--s-color); }
         .border-primary { border-color: var(--p-color); }
         
-        /* Animations */
         .marquee { white-space: nowrap; animation: scroll 30s linear infinite; }
         @keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
         
@@ -39,26 +29,22 @@
         ::-webkit-scrollbar-track { background: #E2E8F0; } 
         ::-webkit-scrollbar-thumb { background: var(--p-color); border-radius: 10px; }
         
-        /* Print Configuration */
         @media print { 
             body * { visibility: hidden; } 
             #print-area, #print-area * { visibility: visible; } 
             #print-area { 
                 position: absolute; left: 0; top: 0; 
                 width: var(--printer-width, 58mm); 
-                text-align: center; 
-                font-family: 'Courier New', Courier, monospace; 
+                text-align: center; font-family: 'Courier New', Courier, monospace; 
                 color: black; background: white; margin:0; padding:0; 
             } 
         }
         
-        /* Admin Tabs */
         .tab-content { display: none; animation: fadeIn 0.3s ease; } 
         .tab-content.active { display: block; } 
         .tab-btn.active { background-color: var(--p-color); color: white; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        /* Offline Status UI */
         #offline-badge { display: none; } 
         body.offline #offline-badge { display: flex; }
         .counter-offline { opacity: 0.4; filter: grayscale(100%); }
@@ -66,10 +52,8 @@
 </head>
 <body class="h-screen flex flex-col overflow-hidden relative">
 
-    <!-- Efek Flash Kamera Siluman -->
     <div id="camera-flash" class="fixed inset-0 bg-white z-[9999] pointer-events-none opacity-0 transition-opacity duration-150"></div>
 
-    <!-- Navigasi Global (Dihilangkan pada mode Display/Kiosk) -->
     <nav id="top-nav" class="bg-white px-8 py-4 flex justify-between items-center shadow-sm z-50">
         <div class="flex items-center gap-5">
             <img id="nav-logo" src="" class="h-10 object-contain">
@@ -85,10 +69,8 @@
         </div>
     </nav>
 
-    <!-- Kontainer Dinamis -->
     <main id="app-container" class="flex-grow overflow-auto relative bg-[#F4F7FE]"></main>
 
-    <!-- Area Cetak Thermal -->
     <div id="print-area" class="hidden flex flex-col items-center py-4 mx-auto text-black">
         <div id="p-header" class="text-sm font-bold whitespace-pre-line text-center border-b-2 border-dashed border-black pb-2 mb-2 w-full uppercase"></div>
         <div class="text-[10px] mt-2 text-center font-bold" id="p-service"></div>
@@ -98,7 +80,6 @@
         <div id="p-disclaimer" class="text-[9px] text-center w-full mt-2 italic font-medium"></div>
     </div>
 
-    <!-- Kamera Latar Belakang (Silent Capture) -->
     <video id="hidden-cam" autoplay playsinline class="hidden"></video>
 
     <script>
@@ -112,21 +93,16 @@
         let slideIndex = 0; 
         let recentCalls = []; 
         let offlineQueue = JSON.parse(localStorage.getItem('offlineQueue') || '[]'); 
-        let rawReportData = [];
+        
+        // DEKLARASI HANYA DILAKUKAN SEKALI DI SINI
+        let rawReportData = []; 
+        let filteredData = [];
 
-        // Pendeteksi Jaringan
-        window.addEventListener('online', () => { 
-            document.body.classList.remove('offline'); 
-            syncOfflineData(); 
-        });
-        window.addEventListener('offline', () => { 
-            document.body.classList.add('offline'); 
-            Swal.fire('Koneksi Terputus', 'Aplikasi beralih ke Offline Mode. Data akan disinkronkan nanti.', 'warning'); 
-        });
+        window.addEventListener('online', () => { document.body.classList.remove('offline'); syncOfflineData(); });
+        window.addEventListener('offline', () => { document.body.classList.add('offline'); Swal.fire('Koneksi Terputus', 'Aplikasi beralih ke Offline Mode.', 'warning'); });
         
         const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
 
-        // Web Audio API untuk Pre-Voice Chime (Berjalan Offline)
         function playChime() {
             return new Promise(resolve => {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -134,18 +110,15 @@
                     const osc = ctx.createOscillator(); const gain = ctx.createGain(); 
                     osc.connect(gain); gain.connect(ctx.destination); 
                     osc.type = 'sine'; osc.frequency.value = freq; 
-                    gain.gain.setValueAtTime(0, time); 
-                    gain.gain.linearRampToValueAtTime(0.3, time + 0.05); 
+                    gain.gain.setValueAtTime(0, time); gain.gain.linearRampToValueAtTime(0.3, time + 0.05); 
                     gain.gain.exponentialRampToValueAtTime(0.001, time + duration); 
                     osc.start(time); osc.stop(time + duration); 
                 };
-                playTone(659.25, ctx.currentTime, 0.8); // Nada E5
-                playTone(523.25, ctx.currentTime + 0.4, 1.2); // Nada C5
+                playTone(659.25, ctx.currentTime, 0.8); playTone(523.25, ctx.currentTime + 0.4, 1.2); 
                 setTimeout(resolve, 1400); 
             });
         }
 
-        // Inisialisasi Sistem
         async function init() {
             if(!navigator.onLine) document.body.classList.add('offline');
             document.getElementById('app-container').innerHTML = `<div class="flex h-full items-center justify-center"><i class="fa-solid fa-spinner fa-spin-pulse text-6xl text-primary"></i></div>`;
@@ -159,49 +132,34 @@
                 if(!config.bankName) return Swal.fire({ icon: 'error', title: 'Error Fatal', text: 'Tidak ada cache konfigurasi offline. Anda butuh internet untuk inisiasi pertama.' }); 
             }
             
-            updateBrand(); 
-            renderView(); 
-            setInterval(updateClock, 1000);
+            updateBrand(); renderView(); setInterval(updateClock, 1000);
         }
 
-        function updateClock() { 
-            const el = document.getElementById('clock'); 
-            if(el) el.innerText = new Date().toLocaleTimeString('id-ID'); 
-        }
+        function updateClock() { const el = document.getElementById('clock'); if(el) el.innerText = new Date().toLocaleTimeString('id-ID'); }
 
         function updateBrand() {
             document.documentElement.style.setProperty('--p-color', config.primaryColor); 
             document.documentElement.style.setProperty('--s-color', config.secondaryColor); 
             document.documentElement.style.setProperty('--printer-width', config.printerSize);
-            
             document.getElementById('nav-bank-name').innerText = config.bankName; 
             document.getElementById('nav-logo').src = config.bankLogo;
-            
             const badge = document.getElementById('role-badge'); 
-            if(view !== 'display' && view !== 'kiosk') { 
-                badge.classList.remove('hidden'); 
-                badge.innerText = view === 'staff' ? params.get('name').toUpperCase() : view.toUpperCase(); 
-            }
+            if(view !== 'display' && view !== 'kiosk') { badge.classList.remove('hidden'); badge.innerText = view === 'staff' ? params.get('name').toUpperCase() : view.toUpperCase(); }
         }
 
         function renderView() {
             const el = document.getElementById('app-container');
-            if(view === 'kiosk') renderKiosk(el); 
-            else if(view === 'display') renderDisplay(el); 
-            else if(view === 'staff') renderStaff(el); 
-            else if(view === 'admin') renderAdmin(el);
+            if(view === 'kiosk') renderKiosk(el); else if(view === 'display') renderDisplay(el); else if(view === 'staff') renderStaff(el); else if(view === 'admin') renderAdmin(el);
         }
 
         // ==========================================
-        // 1. KIOSK NASABAH (Auto Dual Monitor & Silent Cam)
+        // 1. KIOSK NASABAH
         // ==========================================
         function renderKiosk(el) {
             document.getElementById('top-nav').style.display = 'none';
             el.innerHTML = `
                 <div id="kiosk-ui" class="h-full flex-col bg-cover bg-center relative flex" style="background-image: url('https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80');">
                     <div class="absolute inset-0 bg-primary/95 backdrop-blur-md z-0"></div>
-                    
-                    <!-- Layar Aktivasi Sistem -->
                     <div id="power-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-sm transition-opacity duration-500">
                         <button onclick="startSystem()" class="flex flex-col items-center focus:outline-none hover:scale-110 transition-transform">
                             <div class="w-40 h-40 bg-secondary rounded-full flex items-center justify-center mb-8 shadow-[0_0_50px_rgba(243,112,33,0.6)] animate-pulse">
@@ -222,7 +180,6 @@
                         </div>
                         
                         <div class="flex-grow flex flex-col items-center justify-center max-w-7xl mx-auto w-full gap-10">
-                            <!-- Input Detail Layanan -->
                             <div class="w-full max-w-2xl bg-white p-8 rounded-[2.5rem] shadow-2xl relative mt-16 text-center border-t-8 border-secondary">
                                 <div class="absolute -top-16 left-1/2 transform -translate-x-1/2">
                                     <div class="w-32 h-32 bg-white rounded-full border-[8px] border-slate-100 flex items-center justify-center shadow-xl">
@@ -257,42 +214,28 @@
         }
 
         async function startSystem() {
-            // Auto Pop-up Display to Second Screen
             const popupLeft = (window.screenLeft !== undefined ? window.screenLeft : window.screenX) + (window.innerWidth || screen.width); 
             window.open(window.location.pathname + '?view=display', 'BankingHall', `width=1920,height=1080,left=${popupLeft},top=0`);
             
-            // Remove Lock Screen
-            const pScreen = document.getElementById('power-screen');
-            pScreen.style.opacity = '0';
+            const pScreen = document.getElementById('power-screen'); pScreen.style.opacity = '0';
             setTimeout(() => pScreen.classList.add('hidden'), 500);
 
-            // Inisialisasi Silent Camera Background
-            try { 
-                const stream = await navigator.mediaDevices.getUserMedia({video: true}); 
-                document.getElementById('hidden-cam').srcObject = stream; 
-            } catch(e) { Swal.fire('Perhatian', 'Kamera PC belum diaktifkan atau diblokir browser.', 'warning'); }
+            try { const stream = await navigator.mediaDevices.getUserMedia({video: true}); document.getElementById('hidden-cam').srcObject = stream; } 
+            catch(e) { Swal.fire('Perhatian', 'Kamera PC belum diaktifkan atau diblokir browser.', 'warning'); }
         }
 
         async function takeTicket(type) {
             Swal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
             
-            // Efek Flash Kamera
-            const flash = document.getElementById('camera-flash');
-            flash.style.opacity = '1';
-            setTimeout(() => flash.style.opacity = '0', 150);
+            const flash = document.getElementById('camera-flash'); flash.style.opacity = '1'; setTimeout(() => flash.style.opacity = '0', 150);
 
-            // Tangkap Foto dari Latar Belakang
             let photo = ""; const video = document.getElementById('hidden-cam');
             if(video && video.srcObject) { 
-                const canvas = document.createElement('canvas'); 
-                canvas.width = video.videoWidth; canvas.height = video.videoHeight; 
-                canvas.getContext('2d').drawImage(video, 0, 0); 
-                photo = canvas.toDataURL('image/jpeg', 0.5); 
+                const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight; 
+                canvas.getContext('2d').drawImage(video, 0, 0); photo = canvas.toDataURL('image/jpeg', 0.5); 
             }
-            
             const service = document.getElementById('spec-service').value;
 
-            // Offline Check & Queueing
             if(!navigator.onLine) {
                 const ticketNo = (type === 'teller' ? 'T-O' : 'C-O') + Math.floor(Math.random()*1000);
                 offlineQueue.push({ type, photo, service, timestamp: new Date().getTime(), ticket: ticketNo });
@@ -301,7 +244,6 @@
                 return Swal.fire('Mode Offline', 'Antrian tersimpan di penyimpanan lokal.', 'info');
             }
 
-            // Normal Online Fetch
             try {
                 const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'generate', type, photo, service }) });
                 const data = await res.json();
@@ -311,17 +253,9 @@
 
         function printResi(ticketNo, service) {
             Swal.fire({ icon: 'success', title: 'Silahkan Ambil Resi', text: `Nomor Antrian: ${ticketNo}`, timer: 3000, showConfirmButton: false });
-            
-            document.getElementById('p-header').innerText = config.receiptTemplate.header; 
-            document.getElementById('p-footer').innerText = config.receiptTemplate.footer; 
-            document.getElementById('p-disclaimer').innerText = config.receiptTemplate.disclaimer;
-            document.getElementById('p-ticket').innerText = ticketNo; 
-            document.getElementById('p-service').innerText = "Layanan: " + service; 
-            document.getElementById('p-date').innerText = new Date().toLocaleString('id-ID');
-            
-            document.getElementById('print-area').classList.remove('hidden'); 
-            window.print(); 
-            document.getElementById('print-area').classList.add('hidden');
+            document.getElementById('p-header').innerText = config.receiptTemplate.header; document.getElementById('p-footer').innerText = config.receiptTemplate.footer; document.getElementById('p-disclaimer').innerText = config.receiptTemplate.disclaimer;
+            document.getElementById('p-ticket').innerText = ticketNo; document.getElementById('p-service').innerText = "Layanan: " + service; document.getElementById('p-date').innerText = new Date().toLocaleString('id-ID');
+            document.getElementById('print-area').classList.remove('hidden'); window.print(); document.getElementById('print-area').classList.add('hidden');
         }
 
         async function syncOfflineData() {
@@ -329,11 +263,7 @@
             try {
                 const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'syncOfflineQueue', payload: offlineQueue }) });
                 const data = await res.json();
-                if(data.success) { 
-                    offlineQueue = []; 
-                    localStorage.setItem('offlineQueue', '[]'); 
-                    Toast.fire({ icon: 'success', title: 'Sinkronisasi offline berhasil!' }); 
-                }
+                if(data.success) { offlineQueue = []; localStorage.setItem('offlineQueue', '[]'); Toast.fire({ icon: 'success', title: 'Sinkronisasi offline berhasil!' }); }
             } catch(e) {}
         }
 
@@ -342,10 +272,7 @@
         // ==========================================
         function renderDisplay(el) {
             document.getElementById('top-nav').style.display = 'none';
-            
-            let mediaHtml = config.mediaType === 'youtube' 
-                ? `<iframe class="w-full h-full pointer-events-none" src="https://www.youtube.com/embed/${config.mediaSource}?autoplay=1&mute=1&loop=1&playlist=${config.mediaSource}&controls=0" frameborder="0"></iframe>` 
-                : `<img id="slide-img" class="w-full h-full object-cover transition-all duration-1000 ease-in-out">`;
+            let mediaHtml = config.mediaType === 'youtube' ? `<iframe class="w-full h-full pointer-events-none" src="https://www.youtube.com/embed/${config.mediaSource}?autoplay=1&mute=1&loop=1&playlist=${config.mediaSource}&controls=0" frameborder="0"></iframe>` : `<img id="slide-img" class="w-full h-full object-cover transition-all duration-1000 ease-in-out">`;
             
             let counterGridHTML = config.counters.map(c => `
                 <div class="bg-white/10 backdrop-blur-md rounded-2xl overflow-hidden border border-white/20 shadow-lg flex flex-col transition-all duration-500" id="box-${c.replace(/\s+/g, '-')}">
@@ -359,16 +286,12 @@
             el.innerHTML = `
                 <div class="flex-grow flex flex-col bg-slate-900 h-screen w-full">
                     <div class="flex-grow grid grid-cols-12 h-full">
-                        
-                        <!-- Panel Kiri: Video & Grid -->
                         <div class="col-span-8 bg-black flex flex-col relative overflow-hidden">
                             ${mediaHtml}
                             <div class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-slate-900 via-slate-900/80 to-transparent pt-32 pb-8 px-8">
                                 <div class="grid grid-cols-${Math.min(config.counters.length, 5)} gap-6">${counterGridHTML}</div>
                             </div>
                         </div>
-                        
-                        <!-- Panel Kanan: Panggilan Utama & History -->
                         <div class="col-span-4 bg-white flex flex-col text-center z-10 relative overflow-hidden shadow-[-20px_0_40px_rgba(0,0,0,0.5)]">
                             <div class="bg-slate-50 p-10 flex flex-col items-center justify-center shadow-inner relative flex-grow">
                                 <h2 class="text-xl font-black text-slate-400 mb-8 uppercase tracking-[0.3em]">Antrian Dipanggil</h2>
@@ -382,121 +305,68 @@
                                     <div id="d-counter" class="text-3xl font-black text-secondary">LOKET -</div>
                                 </div>
                             </div>
-                            
                             <div class="bg-white border-t border-slate-200 p-6 flex flex-col h-64">
                                 <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest text-left mb-4"><i class="fa-solid fa-clock-rotate-left mr-2"></i> Baru Saja Dipanggil</h3>
                                 <div id="recent-calls-list" class="flex flex-col gap-3 overflow-hidden"></div>
                             </div>
                         </div>
                     </div>
-                    
                     <div class="h-20 bg-primary flex items-center overflow-hidden border-t-4 border-secondary relative z-20">
                         <div class="marquee text-4xl text-white font-black uppercase tracking-widest whitespace-nowrap drop-shadow-md">${config.runningText}</div>
                     </div>
                 </div>
             `;
-            
-            if(config.mediaType === 'slideshow') setInterval(playSlideshow, 5000); 
-            setInterval(pollDisplay, 2500);
+            if(config.mediaType === 'slideshow') setInterval(playSlideshow, 5000); setInterval(pollDisplay, 2500);
         }
 
         function playSlideshow() { 
-            const urls = config.mediaSource.split(',').map(s => s.trim()); 
-            const el = document.getElementById('slide-img'); 
-            if(el && urls.length > 0) { 
-                el.style.opacity = 0; 
-                setTimeout(() => { 
-                    el.src = urls[slideIndex]; 
-                    el.style.opacity = 1; 
-                    slideIndex = (slideIndex + 1) % urls.length; 
-                }, 500); 
-            } 
+            const urls = config.mediaSource.split(',').map(s => s.trim()); const el = document.getElementById('slide-img'); 
+            if(el && urls.length > 0) { el.style.opacity = 0; setTimeout(() => { el.src = urls[slideIndex]; el.style.opacity = 1; slideIndex = (slideIndex + 1) % urls.length; }, 500); } 
         }
 
         let lastT = "";
         async function pollDisplay() {
-            if(!navigator.onLine) return; // Hentikan polling jika TV offline
+            if(!navigator.onLine) return; 
             try {
-                const res = await fetch(`${API_URL}?action=getState`); 
-                const state = await res.json();
-                
-                // Update Loket Grid (Termasuk Deteksi Break Mode)
+                const res = await fetch(`${API_URL}?action=getState`); const state = await res.json();
                 if(state.activeCounters) {
                     config.counters.forEach(c => {
-                        const boxID = `box-${c.replace(/\s+/g, '-')}`; 
-                        const gridID = `grid-${c.replace(/\s+/g, '-')}`; 
-                        const iconID = `icon-break-${c.replace(/\s+/g, '-')}`;
-                        
-                        const elGrid = document.getElementById(gridID); 
-                        const elBox = document.getElementById(boxID); 
-                        const elIcon = document.getElementById(iconID);
-                        
+                        const boxID = `box-${c.replace(/\s+/g, '-')}`; const gridID = `grid-${c.replace(/\s+/g, '-')}`; const iconID = `icon-break-${c.replace(/\s+/g, '-')}`;
+                        const elGrid = document.getElementById(gridID); const elBox = document.getElementById(boxID); const elIcon = document.getElementById(iconID);
                         if(elGrid) elGrid.innerText = state.activeCounters[c] || "-";
-                        
                         if(state.counterStatus && (state.counterStatus[c] === 'break' || state.counterStatus[c] === 'offline')) { 
-                            elBox.classList.add('counter-offline'); 
-                            elGrid.innerText = "TUTUP"; 
-                            elIcon.classList.remove('hidden'); 
+                            elBox.classList.add('counter-offline'); elGrid.innerText = "TUTUP"; elIcon.classList.remove('hidden'); 
                         } else { 
-                            elBox.classList.remove('counter-offline'); 
-                            elIcon.classList.add('hidden'); 
+                            elBox.classList.remove('counter-offline'); elIcon.classList.add('hidden'); 
                         }
                     });
                 }
-                
-                // Pengecekan Panggilan Baru
                 const now = state.lastCalled;
                 if(now.ticket !== lastT && now.ticket !== "-") {
-                    
-                    // Simpan ke riwayat panel bawah
                     if(lastT !== "" && lastT !== "-") { 
                         recentCalls.unshift({ ticket: document.getElementById('d-ticket').innerText, counter: document.getElementById('d-counter').innerText }); 
                         if(recentCalls.length > 3) recentCalls.pop(); 
-                        document.getElementById('recent-calls-list').innerHTML = recentCalls.map(rc => `
-                            <div class="bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center shadow-sm">
-                                <div class="font-black text-slate-700 text-2xl">${rc.ticket}</div>
-                                <div class="text-xs font-bold bg-slate-200 text-slate-600 px-3 py-1 rounded-full uppercase">${rc.counter}</div>
-                            </div>
-                        `).join('');
+                        document.getElementById('recent-calls-list').innerHTML = recentCalls.map(rc => `<div class="bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center shadow-sm"><div class="font-black text-slate-700 text-2xl">${rc.ticket}</div><div class="text-xs font-bold bg-slate-200 text-slate-600 px-3 py-1 rounded-full uppercase">${rc.counter}</div></div>`).join('');
                     }
-                    
-                    document.getElementById('d-ticket').innerText = now.ticket; 
-                    document.getElementById('d-counter').innerText = now.counter;
-                    
-                    const imgEl = document.getElementById('d-img'); 
-                    const iconEl = document.getElementById('d-icon');
-                    if(imgEl && now.photo) { 
-                        imgEl.src = now.photo; imgEl.classList.remove('hidden'); iconEl.classList.add('hidden'); 
-                    } else { 
-                        imgEl.classList.add('hidden'); iconEl.classList.remove('hidden'); 
-                    }
-                    
-                    // Chime Audio -> Lanjut ke Text-to-Speech
-                    await playChime(); 
-                    const msg = new SpeechSynthesisUtterance(`Nomor antrian, ${now.ticket.replace('-', ' ')}, silahkan menuju, ${now.counter}`); 
-                    msg.lang = 'id-ID'; 
-                    msg.rate = 0.85; 
-                    speechSynthesis.speak(msg); 
-                    
+                    document.getElementById('d-ticket').innerText = now.ticket; document.getElementById('d-counter').innerText = now.counter;
+                    const imgEl = document.getElementById('d-img'); const iconEl = document.getElementById('d-icon');
+                    if(imgEl && now.photo) { imgEl.src = now.photo; imgEl.classList.remove('hidden'); iconEl.classList.add('hidden'); } else { imgEl.classList.add('hidden'); iconEl.classList.remove('hidden'); }
+                    await playChime(); const msg = new SpeechSynthesisUtterance(`Nomor antrian, ${now.ticket.replace('-', ' ')}, silahkan menuju, ${now.counter}`); msg.lang = 'id-ID'; msg.rate = 0.85; speechSynthesis.speak(msg); 
                     lastT = now.ticket;
                 }
             } catch(e){}
         }
 
         // ==========================================
-        // 3. STAFF COUNTER (Break & Transfer Menu)
+        // 3. STAFF COUNTER 
         // ==========================================
         function renderStaff(el) {
-            const role = params.get('role') || 'teller'; 
-            const counterName = params.get('name') || `${role.toUpperCase()} 1`; 
-            
+            const role = params.get('role') || 'teller'; const counterName = params.get('name') || `${role.toUpperCase()} 1`; 
             const themeClass = config.counterTheme === 'dark' ? 'bg-slate-900 text-white border-slate-700' : config.counterTheme === 'brand' ? 'bg-primary text-white border-blue-800' : 'bg-white text-slate-800 border-slate-100'; 
             const cardInner = config.counterTheme === 'light' ? 'bg-slate-50' : 'bg-black/20';
 
             el.innerHTML = `
                 <div class="h-full p-8 flex flex-col gap-6 max-w-6xl mx-auto w-full">
-                    
-                    <!-- Top Navigation Bar for Staff -->
                     <div class="${themeClass} rounded-3xl p-6 shadow-sm flex justify-between items-center border">
                         <div class="flex items-center gap-4">
                             <select id="staff-status" onchange="changeStaffStatus('${counterName}')" class="bg-transparent font-black text-3xl uppercase tracking-widest outline-none cursor-pointer border-b-2 border-dashed pb-1">
@@ -517,13 +387,10 @@
                         </div>
                     </div>
 
-                    <!-- Main Action Dashboard -->
                     <div class="${themeClass} p-12 rounded-[3rem] shadow-xl border flex-grow flex gap-16 items-center justify-center relative overflow-hidden">
-                        
                         <div id="s-photo" class="${cardInner} w-80 h-80 rounded-[2.5rem] border-4 border-dashed border-white/20 flex items-center justify-center overflow-hidden shadow-inner shrink-0">
                             <i class="fa-solid fa-user-astronaut text-[100px] opacity-30"></i>
                         </div>
-                        
                         <div class="flex flex-col flex-grow w-full max-w-2xl">
                             <div class="text-sm font-bold uppercase tracking-widest mb-2 opacity-60">Sedang Dilayani</div>
                             <div id="s-ticket" class="text-[100px] font-black leading-none mb-4 drop-shadow-sm">-</div>
@@ -532,17 +399,10 @@
                             <button onclick="staffAction('call', '${role}', '${counterName}')" class="w-full py-6 bg-secondary text-white text-2xl font-black rounded-2xl shadow-lg mb-4 hover:scale-105 transition-transform flex items-center justify-center gap-3">
                                 <i class="fa-solid fa-bullhorn"></i> PANGGIL BERIKUTNYA
                             </button>
-                            
                             <div class="grid grid-cols-3 gap-3">
-                                <button onclick="staffAction('recall', '${role}', '${counterName}')" class="py-4 ${cardInner} font-bold rounded-2xl hover:brightness-90 transition-colors border border-white/10">
-                                    <i class="fa-solid fa-rotate-right"></i> Ulang Panggilan
-                                </button>
-                                <button onclick="transferQueue('${counterName}')" class="py-4 bg-indigo-500 text-white font-bold rounded-2xl hover:bg-indigo-600 transition-colors shadow-md">
-                                    <i class="fa-solid fa-share-nodes"></i> Transfer Tiket
-                                </button>
-                                <button onclick="markDone()" class="py-4 bg-emerald-500 text-white font-bold rounded-2xl shadow-md hover:bg-emerald-600 transition-colors">
-                                    <i class="fa-solid fa-check-double"></i> Layanan Selesai
-                                </button>
+                                <button onclick="staffAction('recall', '${role}', '${counterName}')" class="py-4 ${cardInner} font-bold rounded-2xl hover:brightness-90 transition-colors border border-white/10"><i class="fa-solid fa-rotate-right"></i> Ulang Panggilan</button>
+                                <button onclick="transferQueue('${counterName}')" class="py-4 bg-indigo-500 text-white font-bold rounded-2xl hover:bg-indigo-600 transition-colors shadow-md"><i class="fa-solid fa-share-nodes"></i> Transfer Tiket</button>
+                                <button onclick="markDone()" class="py-4 bg-emerald-500 text-white font-bold rounded-2xl shadow-md hover:bg-emerald-600 transition-colors"><i class="fa-solid fa-check-double"></i> Layanan Selesai</button>
                             </div>
                         </div>
                     </div>
@@ -551,38 +411,22 @@
             setInterval(() => pollStaffStatus(role), 3000); 
         }
 
-        let lastCalled = ""; 
-        let lastPhoto = ""; 
-        let lastService = "";
+        let lastCalled = ""; let lastPhoto = ""; let lastService = "";
 
         async function changeStaffStatus(counterName) { 
             const status = document.getElementById('staff-status').value; 
-            try { 
-                await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'updateStatus', counterName, status }) }); 
-                Toast.fire({ icon: 'success', title: `Status Locket diubah.` }); 
-            } catch(e){} 
+            try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'updateStatus', counterName, status }) }); Toast.fire({ icon: 'success', title: `Status Loket diubah.` }); } catch(e){} 
         }
 
         async function transferQueue(counterName) {
             if(!lastCalled || lastCalled === "-") return Toast.fire({ icon: 'warning', title: 'Belum ada tiket aktif.' });
-            
-            const target = await Swal.fire({ 
-                title: 'Transfer Antrian', 
-                text: `Pindahkan tiket ${lastCalled} ke loket mana?`, 
-                input: 'select', 
-                inputOptions: { 'teller': 'Antrian TELLER', 'cs': 'Antrian CUSTOMER SERVICE' }, 
-                showCancelButton: true, confirmButtonText: 'Transfer Sekarang' 
-            });
-            
+            const target = await Swal.fire({ title: 'Transfer Antrian', text: `Pindahkan tiket ${lastCalled} ke loket mana?`, input: 'select', inputOptions: { 'teller': 'Antrian TELLER', 'cs': 'Antrian CUSTOMER SERVICE' }, showCancelButton: true, confirmButtonText: 'Transfer Sekarang' });
             if(target.isConfirmed) { 
                 Swal.fire({ title: 'Memproses Transfer...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); 
                 try { 
                     const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'transfer', targetType: target.value, photo: lastPhoto, service: lastService }) }); 
                     const data = await res.json(); 
-                    if(data.success) { 
-                        Swal.fire('Berhasil Transfer', `Tiket baru nasabah ini adalah: ${data.newTicket}. Silahkan catat di resi nasabah.`, 'success'); 
-                        markDone(); 
-                    } 
+                    if(data.success) { Swal.fire('Berhasil Transfer', `Tiket baru nasabah ini adalah: ${data.newTicket}. Silahkan catat di resi nasabah.`, 'success'); markDone(); } 
                 } catch(e) { Swal.fire('Error', 'Gagal transfer antrian', 'error'); } 
             }
         }
@@ -594,29 +438,22 @@
                 const data = await res.json(); 
                 if(data.success) { 
                     lastCalled = data.ticket; lastPhoto = data.photo || ""; lastService = data.service || "Umum"; 
-                    document.getElementById('s-ticket').innerText = data.ticket; 
-                    document.getElementById('s-service').innerText = data.service; 
+                    document.getElementById('s-ticket').innerText = data.ticket; document.getElementById('s-service').innerText = data.service; 
                     if(data.photo) document.getElementById('s-photo').innerHTML = `<img src="${data.photo}" class="w-full h-full object-cover">`; 
-                    Toast.fire({ icon: 'success', title: `Antrian dipanggil.` }); 
-                    pollStaffStatus(type); 
+                    Toast.fire({ icon: 'success', title: `Antrian dipanggil.` }); pollStaffStatus(type); 
                 } else { Swal.fire('Info', data.msg, 'info'); } 
-            } catch(e) {}
+            } catch(e) { Toast.fire({ icon: 'error', title: 'Gagal koneksi.' }); }
         }
 
         function markDone() { 
             if(!lastCalled || lastCalled === "-") return; 
-            document.getElementById('s-ticket').innerText = "-"; 
-            document.getElementById('s-service').innerText = "-"; 
-            document.getElementById('s-photo').innerHTML = `<i class="fa-solid fa-user-astronaut text-[100px] opacity-30"></i>`; 
-            lastCalled = ""; lastPhoto = ""; lastService = ""; 
-            Toast.fire({ icon: 'success', title: 'Transaksi Selesai direkam.' }); 
+            document.getElementById('s-ticket').innerText = "-"; document.getElementById('s-service').innerText = "-"; document.getElementById('s-photo').innerHTML = `<i class="fa-solid fa-user-astronaut text-[100px] opacity-30"></i>`; 
+            lastCalled = ""; lastPhoto = ""; lastService = ""; Toast.fire({ icon: 'success', title: 'Transaksi Selesai direkam.' }); 
         }
 
         async function pollStaffStatus(role) { 
             try { 
-                const res = await fetch(`${API_URL}?action=getState`); 
-                const state = await res.json(); 
-                const rData = state[role]; 
+                const res = await fetch(`${API_URL}?action=getState`); const state = await res.json(); const rData = state[role]; 
                 document.getElementById('st-prev').innerText = rData.currentCalled > 1 ? (role==='teller'?'T-':'C-') + (rData.currentCalled - 1) : '-'; 
                 const sisa = rData.lastGenerated - rData.currentCalled; 
                 document.getElementById('st-next').innerText = sisa > 0 ? `${sisa} Orang` : 'KOSONG'; 
@@ -624,16 +461,13 @@
         }
 
         // ==========================================
-        // 4. ADMIN DASHBOARD (SLA Report & Tabs)
+        // 4. ADMIN DASHBOARD
         // ==========================================
         function renderAdmin(el) {
-            // Screen Lock
             if(!sessionStorage.getItem('adminUnlocked')) return renderAdminLock(el);
             
             el.innerHTML = `
                 <div class="flex h-full max-w-[1600px] mx-auto overflow-hidden bg-white shadow-2xl m-4 rounded-[2rem] border border-slate-200">
-                    
-                    <!-- Sidebar Navigation -->
                     <div class="w-72 bg-slate-50 border-r border-slate-200 p-6 flex flex-col gap-2 z-10">
                         <div class="mb-8 px-4">
                             <h2 class="text-xl font-black text-slate-800 uppercase tracking-widest"><i class="fa-solid fa-sliders text-primary"></i> Master Web</h2>
@@ -645,19 +479,15 @@
                         <button onclick="switchTab('tab-printer', this)" class="tab-btn text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200"><i class="fa-solid fa-print mr-3 w-5"></i> Thermal Printer</button>
                         <button onclick="switchTab('tab-counter', this)" class="tab-btn text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200"><i class="fa-solid fa-users-gear mr-3 w-5"></i> Counter Staff</button>
                         <button onclick="switchTab('tab-report', this)" class="tab-btn text-left px-6 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-200 mt-auto"><i class="fa-solid fa-chart-line mr-3 w-5"></i> Data & Laporan</button>
-                        
                         <button onclick="lockAdmin()" class="text-left px-6 py-3 rounded-2xl font-bold text-red-500 hover:bg-red-50 mt-2"><i class="fa-solid fa-lock mr-3 w-5"></i> Kunci Layar</button>
                     </div>
                     
-                    <!-- Content Area -->
                     <div class="flex-grow p-10 overflow-auto bg-[#F4F7FE] relative">
-                        
                         <div class="absolute top-10 right-10 flex gap-4 z-50">
                             <button onclick="resetQueue()" class="bg-red-100 text-red-600 px-6 py-3 rounded-xl font-bold border border-red-200 hover:bg-red-200"><i class="fa-solid fa-power-off"></i> Reset Harian</button>
                             <button onclick="saveAdminConfig()" class="bg-primary text-white px-8 py-3 rounded-xl font-black shadow-lg hover:scale-105 transition-transform"><i class="fa-solid fa-floppy-disk"></i> SIMPAN SEMUA</button>
                         </div>
                         
-                        <!-- TAB 1: IDENTITAS -->
                         <div id="tab-branding" class="tab-content active max-w-4xl pt-16">
                             <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Identitas & Branding</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
@@ -670,7 +500,6 @@
                             </div>
                         </div>
                         
-                        <!-- TAB 2: KIOSK -->
                         <div id="tab-kiosk" class="tab-content max-w-4xl pt-16">
                             <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Layar Kiosk Nasabah</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
@@ -679,7 +508,6 @@
                             </div>
                         </div>
 
-                        <!-- TAB 3: DISPLAY -->
                         <div id="tab-display" class="tab-content max-w-4xl pt-16">
                             <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Media Banking Hall</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
@@ -697,7 +525,6 @@
                             </div>
                         </div>
 
-                        <!-- TAB 4: PRINTER -->
                         <div id="tab-printer" class="tab-content max-w-4xl pt-16">
                             <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Pengaturan Thermal Printer</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
@@ -716,7 +543,6 @@
                             </div>
                         </div>
 
-                        <!-- TAB 5: COUNTER -->
                         <div id="tab-counter" class="tab-content max-w-4xl pt-16">
                             <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Manajemen Loket & Staff</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
@@ -735,7 +561,6 @@
                             </div>
                         </div>
 
-                        <!-- TAB 6: LAPORAN SLA -->
                         <div id="tab-report" class="tab-content w-full pt-16">
                             <div class="flex justify-between items-center mb-6">
                                 <h2 class="text-3xl font-black text-slate-800">Advanced SLA Analytics</h2>
@@ -748,7 +573,6 @@
                                 <button onclick="applyReportFilter()" class="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-700 h-[42px]"><i class="fa-solid fa-filter mr-2"></i> Terapkan Filter</button>
                             </div>
 
-                            <!-- Dynamic Operasional Stats -->
                             <div class="grid grid-cols-5 gap-4 mb-6" id="dynamic-staff-stats"></div>
 
                             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[500px]">
@@ -775,7 +599,6 @@
             loadAdminReports();
         }
 
-        // Lock Screen Panel
         function renderAdminLock(el) { 
             document.getElementById('top-nav').style.display = 'none'; 
             el.innerHTML = `
@@ -790,6 +613,7 @@
                 </div>
             `; 
         }
+
         function checkPin() { 
             if(document.getElementById('admin-pin').value === '123456') { 
                 sessionStorage.setItem('adminUnlocked', 'true'); 
@@ -797,17 +621,16 @@
                 renderAdmin(document.getElementById('app-container')); 
             } else { Swal.fire('Ditolak', 'PIN Salah', 'error'); document.getElementById('admin-pin').value = ''; } 
         }
+
         function lockAdmin() { sessionStorage.removeItem('adminUnlocked'); renderAdminLock(document.getElementById('app-container')); }
+
         function switchTab(tabId, btn) { 
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active')); 
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active')); 
             document.getElementById(tabId).classList.add('active'); btn.classList.add('active'); 
         }
 
-        // Laporan SLA Dinamis
-        let rawReportData = [];
-        let filteredData = [];
-        
+        // Laporan SLA & Filter Data Dinamis
         async function loadAdminReports() { 
             try { 
                 const res = await fetch(`${API_URL}?action=getReports`); 
@@ -830,11 +653,8 @@
         }
         
         function renderReportTable() {
-            const tbody = document.getElementById('r-table-body'); 
-            tbody.innerHTML = ''; 
-            
-            let staffStats = {}; 
-            let total = filteredData.length;
+            const tbody = document.getElementById('r-table-body'); tbody.innerHTML = ''; 
+            let staffStats = {}; let total = filteredData.length;
             
             filteredData.slice().reverse().forEach(row => {
                 let staffName = row[3] || 'Belum Dipanggil'; 
@@ -899,7 +719,7 @@
             } 
         }
         
-        // Mulai Sistem
+        // Mulai Eksekusi Sistem
         init();
     </script>
 </body>
