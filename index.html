@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Antrian Ultimate v13</title>
+    <title>Sistem Antrian Ultimate v14</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -45,6 +45,10 @@
             #print-area.theme-detailed { text-align: center; border: 2px solid black; border-radius: 4px; padding: 4mm; }
         }
         
+        /* UI Previews (Admin Panels) */
+        .ui-preview-box { height: 100px; width: 100%; border-radius: 8px; background-size: cover; background-position: center; border: 2px solid #e2e8f0; transition: 0.3s; }
+        .theme-selected .ui-preview-box { border-color: var(--p-color); box-shadow: 0 0 0 4px rgba(0,74,153,0.2); }
+        
         .tab-content { display: none; animation: fadeIn 0.3s ease; } .tab-content.active { display: block; } .tab-btn.active { background-color: var(--p-color); color: white; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         #offline-badge { display: none; } body.offline #offline-badge { display: flex; } .counter-offline { opacity: 0.4; filter: grayscale(100%); }
@@ -66,25 +70,27 @@
     <main id="app-container" class="flex-grow overflow-auto relative bg-[#F4F7FE]"></main>
 
     <div id="print-area" class="hidden flex flex-col mx-auto text-black">
-        <div id="p-header" class="text-sm font-bold whitespace-pre-line border-b-2 border-dashed border-black pb-2 w-full uppercase"></div>
-        <div class="text-[10px] mt-2 font-bold uppercase tracking-widest text-slate-500" id="p-service"></div>
-        <h1 id="p-ticket" class="text-5xl font-black my-2 leading-none"></h1>
-        <div id="p-date" class="text-[10px] mb-2 border-b-2 border-dashed border-black pb-2 w-full"></div>
-        <div id="p-footer" class="text-xs whitespace-pre-line w-full font-bold"></div>
-        <div id="p-disclaimer" class="text-[9px] w-full mt-2 italic font-medium"></div>
+        <div id="p-header" class="text-sm font-bold whitespace-pre-line text-center border-b-2 border-dashed border-black pb-2 w-full uppercase"></div>
+        <div class="text-[10px] mt-2 text-center font-bold uppercase tracking-widest text-slate-500" id="p-service"></div>
+        <h1 id="p-ticket" class="text-5xl font-black my-2 text-center leading-none"></h1>
+        <div id="p-date" class="text-[10px] mb-2 border-b-2 border-dashed border-black pb-2 w-full text-center"></div>
+        <div id="p-footer" class="text-xs whitespace-pre-line text-center w-full font-bold"></div>
+        <div id="p-disclaimer" class="text-[9px] text-center w-full mt-2 italic font-medium"></div>
     </div>
     
     <video id="hidden-cam" autoplay playsinline class="hidden"></video>
 
     <script>
         // MASUKKAN URL GOOGLE APPS SCRIPT DI SINI
-        const API_URL = 'https://script.google.com/macros/s/AKfycbyGSu9c0Gu4jSKxHxmp0e0FR55EY-T65kPSH3TgV3S-BK7z--pJYVam0eqANy5NKDrKiw/exec'; 
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzUgUUPNY5_fCcbQ9vVPBCNBQ8rwN1p3AA-dwHcI16X5QHKnv42GAWOn5tZXxlJ-2-kIw/exec'; 
         
         const params = new URLSearchParams(window.location.search);
         const view = params.get('view') || 'kiosk';
         
-        let config = {}; let slideIndex = 0; let recentCalls = []; let offlineQueue = JSON.parse(localStorage.getItem('offlineQueue') || '[]'); 
+        let config = {}; let playlistIndex = 0; let playlistTimer = null; 
+        let recentCalls = []; let offlineQueue = JSON.parse(localStorage.getItem('offlineQueue') || '[]'); 
         let rawReportData = []; let filteredData = []; let dChartInstance = null; let bChartInstance = null; let voices = [];
+        let hardwareSettings = JSON.parse(localStorage.getItem('hardwareSettings') || '{"camera":"", "printer":""}');
 
         window.addEventListener('online', () => { document.body.classList.remove('offline'); syncOfflineData(); });
         window.addEventListener('offline', () => { document.body.classList.add('offline'); Swal.fire('Koneksi Terputus', 'Beralih ke Offline Mode.', 'warning'); });
@@ -108,9 +114,9 @@
             try { const res = await fetch(`${API_URL}?action=getConfig`); config = await res.json(); localStorage.setItem('cachedConfig', JSON.stringify(config)); } 
             catch (e) { config = JSON.parse(localStorage.getItem('cachedConfig') || '{}'); if(!config.bankName) return Swal.fire({ icon: 'error', title: 'Fatal', text: 'Tidak ada cache offline.' }); }
             
-            if(!config.receiptTheme) config.receiptTheme = "standard";
-            if(!config.rates) config.rates = [];
-            if(!config.voiceConfig) config.voiceConfig = {voiceURI:"", pitch:1, rate:0.85};
+            // Format fallback for old config versions
+            if(!config.playlist) config.playlist = [{type: config.mediaType || 'youtube', url: config.mediaSource || 'aqz-KE-bpKQ', duration: 30}];
+            if(typeof config.counters[0] === 'string') config.counters = config.counters.map(c => ({name: c, role: c.toLowerCase().includes('cs') ? 'cs' : 'teller'}));
 
             updateBrand(); renderView(); setInterval(updateClock, 1000);
         }
@@ -185,12 +191,18 @@
             const popupLeft = (window.screenLeft !== undefined ? window.screenLeft : window.screenX) + (window.innerWidth || screen.width); 
             window.open(window.location.pathname + '?view=display', 'BankingHall', `width=1920,height=1080,left=${popupLeft},top=0`);
             const pScreen = document.getElementById('power-screen'); pScreen.style.opacity = '0'; setTimeout(() => pScreen.classList.add('hidden'), 500);
-            try { const stream = await navigator.mediaDevices.getUserMedia({video: true}); document.getElementById('hidden-cam').srcObject = stream; } catch(e) {}
+            
+            try { 
+                const constraints = hardwareSettings.camera ? { video: { deviceId: { exact: hardwareSettings.camera } } } : { video: true };
+                const stream = await navigator.mediaDevices.getUserMedia(constraints); 
+                document.getElementById('hidden-cam').srcObject = stream; 
+            } catch(e) { console.log(e); Swal.fire('Informasi', 'Kamera tidak terdeteksi. Fitur foto dinonaktifkan.', 'info'); }
         }
 
         async function takeTicket(type) {
             Swal.fire({ title: 'Mencetak...', allowOutsideClick: false, showConfirmButton: false, background: 'rgba(255,255,255,0.9)', didOpen: () => { Swal.showLoading() } });
             const flash = document.getElementById('camera-flash'); flash.style.opacity = '1'; setTimeout(() => flash.style.opacity = '0', 100);
+            
             let photo = ""; const video = document.getElementById('hidden-cam');
             if(video && video.srcObject) { const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight; canvas.getContext('2d').drawImage(video, 0, 0); photo = canvas.toDataURL('image/jpeg', 0.5); }
             const service = document.getElementById('spec-service').value;
@@ -207,11 +219,28 @@
             } catch (e) { Swal.fire('Gagal', 'Koneksi terputus.', 'error'); }
         }
 
-        function printResi(ticketNo, service) {
+        async function printResi(ticketNo, service) {
             Swal.close(); Swal.fire({ icon: 'success', title: 'Silahkan Ambil Resi', text: `Nomor Antrian: ${ticketNo}`, timer: 2000, showConfirmButton: false });
             const pArea = document.getElementById('print-area'); pArea.className = "hidden flex flex-col mx-auto text-black theme-" + config.receiptTheme;
             document.getElementById('p-header').innerText = config.receiptTemplate.header; document.getElementById('p-footer').innerText = config.receiptTemplate.footer; document.getElementById('p-disclaimer').innerText = config.receiptTemplate.disclaimer;
             document.getElementById('p-ticket').innerText = ticketNo; document.getElementById('p-service').innerText = "Layanan: " + service; document.getElementById('p-date').innerText = new Date().toLocaleString('id-ID');
+            
+            if(hardwareSettings.printer) {
+                try {
+                    const devices = await navigator.usb.getDevices();
+                    const printer = devices.find(d => d.serialNumber === hardwareSettings.printer || d.productName === hardwareSettings.printer);
+                    if(printer) {
+                        // Silent USB Printing Protocol if authorized
+                        await printer.open(); await printer.selectConfiguration(1); await printer.claimInterface(0);
+                        const encoder = new TextEncoder();
+                        const data = encoder.encode(`\x1B\x40${config.receiptTemplate.header}\nLayanan: ${service}\n\x1B\x21\x30${ticketNo}\x1B\x21\x00\n${new Date().toLocaleString('id-ID')}\n${config.receiptTemplate.footer}\n${config.receiptTemplate.disclaimer}\n\n\n\n`);
+                        await printer.transferOut(1, data);
+                        await printer.close();
+                        return; // Bypass window.print()
+                    }
+                } catch(e) {} // Fallback to browser print
+            }
+            
             pArea.classList.remove('hidden'); window.print(); pArea.classList.add('hidden');
         }
 
@@ -221,16 +250,15 @@
         }
 
         // ==========================================
-        // 2. DISPLAY BANKING HALL (With Next Queue Panel)
+        // 2. DISPLAY BANKING HALL (Playlist Engine)
         // ==========================================
         function renderDisplay(el) {
             document.getElementById('top-nav').style.display = 'none';
-            let mediaHtml = config.mediaType === 'youtube' ? `<iframe class="w-full h-full pointer-events-none" src="https://www.youtube.com/embed/${config.mediaSource}?autoplay=1&mute=1&loop=1&playlist=${config.mediaSource}&controls=0" frameborder="0"></iframe>` : `<img id="slide-img" class="w-full h-full object-cover transition-all duration-1000 ease-in-out">`;
             
             let counterGridHTML = config.counters.map(c => `
-                <div class="bg-white/10 backdrop-blur-md rounded-2xl overflow-hidden border border-white/20 shadow-lg flex flex-col transition-all duration-500 relative" id="box-${c.replace(/\s+/g, '-')}">
-                    <div class="bg-primary/90 backdrop-blur text-white text-center font-bold py-2 text-sm uppercase tracking-widest flex justify-center items-center gap-2">${c} <i class="fa-solid fa-ban text-red-400 hidden" id="icon-break-${c.replace(/\s+/g, '-')}"></i></div>
-                    <div class="text-center py-4 text-4xl font-black text-white drop-shadow-md transition-transform duration-300" id="grid-${c.replace(/\s+/g, '-')}">-</div>
+                <div class="bg-white/10 backdrop-blur-md rounded-2xl overflow-hidden border border-white/20 shadow-lg flex flex-col transition-all duration-500 relative" id="box-${c.name.replace(/\s+/g, '-')}">
+                    <div class="bg-primary/90 backdrop-blur text-white text-center font-bold py-2 text-sm uppercase tracking-widest flex justify-center items-center gap-2">${c.name} <i class="fa-solid fa-ban text-red-400 hidden" id="icon-break-${c.name.replace(/\s+/g, '-')}"></i></div>
+                    <div class="text-center py-4 text-4xl font-black text-white drop-shadow-md transition-transform duration-300" id="grid-${c.name.replace(/\s+/g, '-')}">-</div>
                 </div>
             `).join('');
 
@@ -254,17 +282,14 @@
             if(config.displayTheme === 'elegant-dark') {
                 el.innerHTML = `
                     <div class="flex-grow flex flex-col bg-slate-900 h-screen w-full relative">
-                        <div class="absolute inset-0 z-0 opacity-40">${mediaHtml}</div>
+                        <div class="absolute inset-0 z-0 opacity-40" id="media-player-container"></div>
                         <div class="absolute inset-0 bg-gradient-to-t from-black via-slate-900/80 to-transparent z-0"></div>
                         ${logoFloatHTML}
                         ${config.rates.length > 0 ? `<div class="absolute top-28 left-8 w-80 bg-black/60 backdrop-blur-md rounded-2xl border border-white/10 p-6 z-10 shadow-2xl"><h3 class="text-white font-black uppercase tracking-widest mb-4 border-b border-white/20 pb-2 text-sm"><i class="fa-solid fa-chart-line text-secondary mr-2"></i> Info Finansial</h3>${ratesHTML}</div>` : ''}
                         
                         <div class="flex-grow flex flex-col items-center justify-center z-10 p-10 relative">
                             <h2 class="text-2xl font-black text-secondary mb-2 uppercase tracking-[0.4em] drop-shadow-lg" id="d-status-text">PANGGILAN UTAMA</h2>
-                            
-                            <div class="relative w-80 h-80 rounded-full bg-white/10 backdrop-blur-xl overflow-hidden border-[10px] border-white/20 shadow-2xl flex items-center justify-center z-10 my-6 transition-transform duration-500" id="d-avatar-container">
-                                <img src="" id="d-img" class="w-full h-full object-cover hidden transition-opacity duration-500"><i id="d-icon" class="fa-solid fa-volume-high text-[120px] text-white/50"></i>
-                            </div>
+                            <div class="relative w-80 h-80 rounded-full bg-white/10 backdrop-blur-xl overflow-hidden border-[10px] border-white/20 shadow-2xl flex items-center justify-center z-10 my-6 transition-transform duration-500" id="d-avatar-container"><img src="" id="d-img" class="w-full h-full object-cover hidden transition-opacity duration-500"><i id="d-icon" class="fa-solid fa-volume-high text-[120px] text-white/50"></i></div>
                             <div id="d-ticket" class="text-[180px] font-black text-white leading-none mb-4 drop-shadow-2xl transition-transform duration-300">-</div>
                             <div class="flex items-center gap-4 bg-primary px-12 py-5 rounded-full shadow-[0_10px_30px_rgba(0,74,153,0.5)] z-10" id="d-counter-box"><span class="text-white/70 font-bold uppercase text-lg tracking-widest">MENUJU LOKET</span><div id="d-counter" class="text-5xl font-black text-secondary drop-shadow-md">-</div></div>
                         </div>
@@ -273,7 +298,7 @@
                     </div>
                 `;
             } else if(config.displayTheme === 'focus-grid') {
-                counterGridHTML = config.counters.map(c => `<div class="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm flex flex-col" id="box-${c.replace(/\s+/g, '-')}"><div class="bg-slate-100 text-slate-500 text-center font-bold py-2 text-sm uppercase tracking-widest flex justify-center items-center gap-2">${c} <i class="fa-solid fa-ban text-red-400 hidden" id="icon-break-${c.replace(/\s+/g, '-')}"></i></div><div class="text-center py-5 text-5xl font-black text-primary" id="grid-${c.replace(/\s+/g, '-')}">-</div></div>`).join('');
+                counterGridHTML = config.counters.map(c => `<div class="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm flex flex-col" id="box-${c.name.replace(/\s+/g, '-')}"><div class="bg-slate-100 text-slate-500 text-center font-bold py-2 text-sm uppercase tracking-widest flex justify-center items-center gap-2">${c.name} <i class="fa-solid fa-ban text-red-400 hidden" id="icon-break-${c.name.replace(/\s+/g, '-')}"></i></div><div class="text-center py-5 text-5xl font-black text-primary" id="grid-${c.name.replace(/\s+/g, '-')}">-</div></div>`).join('');
                 el.innerHTML = `
                     <div class="flex-grow flex flex-col bg-slate-100 h-screen w-full">
                         <div class="flex-grow grid grid-cols-12 h-full">
@@ -284,14 +309,11 @@
                                 ${config.rates.length > 0 ? `<div class="mt-auto pt-6 border-t"><h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3"><i class="fa-solid fa-chart-line text-primary mr-1"></i> Info Suku Bunga & Kurs</h3>${config.rates.map(r => `<div class="flex justify-between text-xs py-1"><span class="text-slate-500 font-bold">${r.name}</span><span class="text-primary font-black">${r.value}</span></div>`).join('')}</div>` : ''}
                             </div>
                             <div class="col-span-8 flex flex-col bg-slate-50 relative overflow-hidden">
-                                <div class="h-[55%] w-full relative border-b-8 border-primary shadow-inner">${mediaHtml}</div>
+                                <div class="h-[55%] w-full relative border-b-8 border-primary shadow-inner" id="media-player-container"></div>
                                 <div class="h-[45%] bg-white p-10 flex items-center justify-between shadow-2xl relative z-20">
                                     <div class="flex items-center gap-10">
                                         <div class="relative w-48 h-48 rounded-[2rem] bg-slate-50 overflow-hidden border-4 border-slate-200 shadow-inner flex items-center justify-center transition-transform duration-500" id="d-avatar-container"><img src="" id="d-img" class="w-full h-full object-cover hidden"><i id="d-icon" class="fa-solid fa-volume-high text-[80px] text-slate-300"></i></div>
-                                        <div class="flex flex-col">
-                                            <span class="text-slate-400 font-bold uppercase tracking-widest mb-2" id="d-status-text">Panggilan Utama</span>
-                                            <div id="d-ticket" class="text-[120px] font-black text-primary leading-none transition-transform duration-300">-</div>
-                                        </div>
+                                        <div class="flex flex-col"><span class="text-slate-400 font-bold uppercase tracking-widest mb-2" id="d-status-text">Panggilan Utama</span><div id="d-ticket" class="text-[120px] font-black text-primary leading-none transition-transform duration-300">-</div></div>
                                     </div>
                                     <div class="flex flex-col gap-4 w-64">
                                         <div class="bg-secondary text-white px-8 py-6 rounded-[2rem] text-center shadow-lg" id="d-counter-box"><div class="text-sm font-bold uppercase tracking-widest opacity-80 mb-2">MENUJU LOKET</div><div id="d-counter" class="text-5xl font-black">-</div></div>
@@ -308,7 +330,7 @@
                     <div class="flex-grow flex flex-col bg-slate-900 h-screen w-full">
                         <div class="flex-grow grid grid-cols-12 h-full">
                             <div class="col-span-8 bg-black flex flex-col relative overflow-hidden shadow-2xl">
-                                ${mediaHtml}
+                                <div id="media-player-container" class="absolute inset-0"></div>
                                 ${logoFloatHTML}
                                 ${config.rates.length > 0 ? `<div class="absolute top-24 left-8 w-72 bg-black/70 backdrop-blur-md rounded-2xl border border-white/10 p-5 z-10 shadow-lg"><h3 class="text-white font-black uppercase tracking-widest mb-3 border-b border-white/20 pb-2 text-[11px]"><i class="fa-solid fa-chart-line text-secondary mr-2"></i> Info Bunga & Valas</h3>${ratesHTML}</div>` : ''}
                                 <div class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-slate-900 via-slate-900/80 to-transparent pt-32 pb-8 px-8"><div class="grid grid-cols-${Math.min(config.counters.length, 5)} gap-6">${counterGridHTML}</div></div>
@@ -331,10 +353,25 @@
                     </div>
                 `;
             }
-            if(config.mediaType === 'slideshow') setInterval(playSlideshow, 5000); setInterval(pollDisplay, 2500);
+            playMediaPlaylist(); setInterval(pollDisplay, 2500);
         }
 
-        function playSlideshow() { const urls = config.mediaSource.split(',').map(s => s.trim()); const el = document.getElementById('slide-img'); if(el && urls.length > 0) { el.style.opacity = 0; setTimeout(() => { el.src = urls[slideIndex]; el.style.opacity = 1; slideIndex = (slideIndex + 1) % urls.length; }, 500); } }
+        // Advanced Playlist Engine
+        function playMediaPlaylist() {
+            if(!config.playlist || config.playlist.length === 0) return;
+            const container = document.getElementById('media-player-container');
+            const media = config.playlist[playlistIndex];
+            
+            if(media.type === 'youtube') {
+                container.innerHTML = `<iframe class="w-full h-full pointer-events-none" src="https://www.youtube.com/embed/${media.url}?autoplay=1&mute=1&controls=0&disablekb=1&modestbranding=1" frameborder="0"></iframe>`;
+            } else {
+                container.innerHTML = `<img src="${media.url}" class="w-full h-full object-cover transition-opacity duration-1000 animate-fadeIn">`;
+            }
+
+            playlistIndex = (playlistIndex + 1) % config.playlist.length;
+            if(playlistTimer) clearTimeout(playlistTimer);
+            playlistTimer = setTimeout(playMediaPlaylist, (media.duration || 30) * 1000);
+        }
 
         let lastT = "";
         async function pollDisplay() {
@@ -342,7 +379,6 @@
             try {
                 const res = await fetch(`${API_URL}?action=getState`); const state = await res.json();
                 
-                // Update Next Queue Panels
                 const nextTeller = state.teller.lastGenerated > state.teller.currentCalled ? `T-${state.teller.currentCalled + 1}` : '-';
                 const nextCS = state.cs.lastGenerated > state.cs.currentCalled ? `C-${state.cs.currentCalled + 1}` : '-';
                 const ntEl = document.getElementById('d-next-teller'); if(ntEl) ntEl.innerText = nextTeller;
@@ -350,9 +386,9 @@
 
                 if(state.activeCounters) {
                     config.counters.forEach(c => {
-                        const elGrid = document.getElementById(`grid-${c.replace(/\s+/g, '-')}`); const elBox = document.getElementById(`box-${c.replace(/\s+/g, '-')}`); const elIcon = document.getElementById(`icon-break-${c.replace(/\s+/g, '-')}`);
-                        if(elGrid && elGrid.innerText !== (state.activeCounters[c] || "-")) { elGrid.innerText = state.activeCounters[c] || "-"; elGrid.classList.add('scale-125', 'text-yellow-300'); setTimeout(() => elGrid.classList.remove('scale-125', 'text-yellow-300'), 500); }
-                        if(state.counterStatus && (state.counterStatus[c] === 'break' || state.counterStatus[c] === 'offline')) { elBox.classList.add('counter-offline'); elGrid.innerText = "TUTUP"; elIcon.classList.remove('hidden'); } else { elBox.classList.remove('counter-offline'); elIcon.classList.add('hidden'); }
+                        const elGrid = document.getElementById(`grid-${c.name.replace(/\s+/g, '-')}`); const elBox = document.getElementById(`box-${c.name.replace(/\s+/g, '-')}`); const elIcon = document.getElementById(`icon-break-${c.name.replace(/\s+/g, '-')}`);
+                        if(elGrid && elGrid.innerText !== (state.activeCounters[c.name] || "-")) { elGrid.innerText = state.activeCounters[c.name] || "-"; elGrid.classList.add('scale-125', 'text-yellow-300'); setTimeout(() => elGrid.classList.remove('scale-125', 'text-yellow-300'), 500); }
+                        if(state.counterStatus && (state.counterStatus[c.name] === 'break' || state.counterStatus[c.name] === 'offline')) { elBox.classList.add('counter-offline'); elGrid.innerText = "TUTUP"; elIcon.classList.remove('hidden'); } else { elBox.classList.remove('counter-offline'); elIcon.classList.add('hidden'); }
                     });
                 }
                 
@@ -366,7 +402,7 @@
                     }
                     
                     const tktEl = document.getElementById('d-ticket'); tktEl.innerText = now.ticket; document.getElementById('d-counter').innerText = now.counter;
-                    const stEl = document.getElementById('d-status-text'); if(stEl) stEl.innerHTML = `Antrian <span class="text-primary font-black">${now.ticket}</span> dilayani di`;
+                    const stEl = document.getElementById('d-status-text'); if(stEl) stEl.innerHTML = `Nomor Antrian <span class="text-primary font-black">${now.ticket}</span> dilayani di <span class="text-primary font-black">${now.counter}</span>`;
                     
                     tktEl.classList.add('pulse-heartbeat', 'text-secondary'); document.getElementById('d-avatar-container').classList.add('pulse-heartbeat', 'border-secondary'); document.getElementById('d-counter-box').classList.add('bg-secondary');
                     setTimeout(() => { tktEl.classList.remove('pulse-heartbeat', 'text-secondary'); document.getElementById('d-avatar-container').classList.remove('pulse-heartbeat', 'border-secondary'); document.getElementById('d-counter-box').classList.remove('bg-secondary'); }, 2500);
@@ -417,15 +453,15 @@
                         </div>
                     </div>
                 </div>`;
-            setInterval(() => pollStaffStatus(role), 3000); 
+            setInterval(() => pollStaffStatus(role, counterName), 3000); 
         }
 
         let lastCalled = ""; let lastPhoto = ""; let lastService = "";
         async function changeStaffStatus(counterName) { const status = document.getElementById('staff-status').value; try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'updateStatus', counterName, status }) }); Toast.fire({ icon: 'success', title: `Status Loket diubah.` }); } catch(e){} }
         async function transferQueue(counterName) {
-            if(!lastCalled || lastCalled === "-") return Toast.fire({ icon: 'warning', title: 'Belum ada tiket.' });
+            if(!lastCalled || lastCalled === "-") return Toast.fire({ icon: 'warning', title: 'Belum ada tiket aktif.' });
             const target = await Swal.fire({ title: 'Transfer Antrian', text: `Pindahkan tiket ${lastCalled} ke loket mana?`, input: 'select', inputOptions: { 'teller': 'Antrian TELLER', 'cs': 'Antrian CUSTOMER SERVICE' }, showCancelButton: true, confirmButtonText: 'Transfer' });
-            if(target.isConfirmed) { Swal.fire({ title: 'Memproses Transfer...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'transfer', targetType: target.value, photo: lastPhoto, service: lastService }) }); const data = await res.json(); if(data.success) { Swal.fire('Berhasil', `Tiket baru: ${data.newTicket}.`, 'success'); resetStaffUI(); } } catch(e) { Swal.fire('Error', 'Gagal transfer', 'error'); } }
+            if(target.isConfirmed) { Swal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'transfer', targetType: target.value, photo: lastPhoto, service: lastService }) }); const data = await res.json(); if(data.success) { Swal.fire('Berhasil', `Tiket baru: ${data.newTicket}. Silahkan catat di resi.`, 'success'); markDone(); } } catch(e) { Swal.fire('Error', 'Gagal transfer', 'error'); } }
         }
         async function staffAction(action, type, counterName) {
             if(action === 'recall' && (!lastCalled || lastCalled === "-")) return Toast.fire({ icon: 'info', title: 'Belum ada nasabah.' });
@@ -435,18 +471,28 @@
                     lastCalled = data.ticket; lastPhoto = data.photo || ""; lastService = data.service || "Umum"; 
                     const tktEl = document.getElementById('s-ticket'); tktEl.innerText = data.ticket; tktEl.classList.add('scale-110'); setTimeout(() => tktEl.classList.remove('scale-110'), 300);
                     document.getElementById('s-service').innerText = data.service; if(data.photo) document.getElementById('s-photo').innerHTML = `<img src="${data.photo}" class="w-full h-full object-cover">`; 
-                    Toast.fire({ icon: 'success', title: `Antrian dipanggil.` }); pollStaffStatus(type); 
+                    Toast.fire({ icon: 'success', title: `Antrian dipanggil.` }); pollStaffStatus(type, counterName); 
                 } else { Swal.fire('Info', data.msg, 'info'); } 
             } catch(e) { Toast.fire({ icon: 'error', title: 'Gagal koneksi.' }); }
         }
-        function markDone() { if(!lastCalled || lastCalled === "-") return; confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: [config.primaryColor, config.secondaryColor, '#10B981'] }); resetStaffUI(); Toast.fire({ icon: 'success', title: 'Transaksi Selesai.' }); }
-        function resetStaffUI() { document.getElementById('s-ticket').innerText = "-"; document.getElementById('s-service').innerText = "-"; document.getElementById('s-photo').innerHTML = `<i class="fa-solid fa-user-astronaut text-[100px] opacity-30"></i>`; lastCalled = ""; lastPhoto = ""; lastService = ""; }
-        async function pollStaffStatus(role) { 
-            try { const res = await fetch(`${API_URL}?action=getState`); const state = await res.json(); const rData = state[role]; document.getElementById('st-prev').innerText = rData.currentCalled > 1 ? (role==='teller'?'T-':'C-') + (rData.currentCalled - 1) : '-'; const sisa = rData.lastGenerated - rData.currentCalled; const nextEl = document.getElementById('st-next'); nextEl.innerText = sisa > 0 ? `${sisa} Orang` : 'KOSONG'; if(sisa > 5) nextEl.classList.add('text-red-500', 'pulse-heartbeat'); else nextEl.classList.remove('text-red-500', 'pulse-heartbeat'); } catch(e){} 
+        function markDone() { if(!lastCalled || lastCalled === "-") return; confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: [config.primaryColor, config.secondaryColor, '#10B981'] }); document.getElementById('s-ticket').innerText = "-"; document.getElementById('s-service').innerText = "-"; document.getElementById('s-photo').innerHTML = `<i class="fa-solid fa-user-astronaut text-[100px] opacity-30"></i>`; lastCalled = ""; lastPhoto = ""; lastService = ""; Toast.fire({ icon: 'success', title: 'Transaksi Selesai.' }); }
+        async function pollStaffStatus(role, counterName) { 
+            try { 
+                const res = await fetch(`${API_URL}?action=getState`); const state = await res.json(); 
+                const rData = state[role]; 
+                
+                // Recovery state for Recall feature if page refreshed
+                if(!lastCalled && state.activeCounters[counterName] && state.activeCounters[counterName] !== "-") {
+                    lastCalled = state.activeCounters[counterName];
+                    document.getElementById('s-ticket').innerText = lastCalled;
+                }
+
+                document.getElementById('st-prev').innerText = rData.currentCalled > 1 ? (role==='teller'?'T-':'C-') + (rData.currentCalled - 1) : '-'; const sisa = rData.lastGenerated - rData.currentCalled; const nextEl = document.getElementById('st-next'); nextEl.innerText = sisa > 0 ? `${sisa} Orang` : 'KOSONG'; if(sisa > 5) nextEl.classList.add('text-red-500', 'pulse-heartbeat'); else nextEl.classList.remove('text-red-500', 'pulse-heartbeat'); 
+            } catch(e){} 
         }
 
         // ==========================================
-        // 4. ADMIN DASHBOARD (Drive API + Receipt Preview)
+        // 4. ADMIN DASHBOARD (Playlist Builder & USB Memory)
         // ==========================================
         function renderAdmin(el) {
             if(!sessionStorage.getItem('adminUnlocked')) return renderAdminLock(el);
@@ -471,37 +517,45 @@
                             <button onclick="saveAdminConfig()" class="btn-hover-fx bg-primary text-white px-8 py-3 rounded-xl font-black shadow-lg"><i class="fa-solid fa-floppy-disk mr-2"></i> SIMPAN SEMUA</button>
                         </div>
                         
+                        <!-- TAB BRANDING -->
                         <div id="tab-branding" class="tab-content active max-w-5xl pt-16">
                             <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Identitas Bank & Suku Bunga</h2>
                             <div class="grid grid-cols-2 gap-8">
                                 <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6 h-max">
                                     <div><label class="block text-xs font-bold text-slate-500 mb-2">NAMA BANK</label><input id="f-bname" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" value="${config.bankName}"></div>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-500 mb-2">LOGO BANK (Upload / URL)</label>
+                                        <label class="block text-xs font-bold text-slate-500 mb-2">LOGO BANK (Pilih / Paste URL)</label>
                                         <div class="flex gap-2">
                                             <input id="f-logo" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.bankLogo}">
                                             <input type="file" id="f-logo-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-logo')">
-                                            <button onclick="document.getElementById('f-logo-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-upload"></i></button>
+                                            <button onclick="document.getElementById('f-logo-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-cloud-arrow-up"></i></button>
                                         </div>
                                     </div>
                                     <div class="grid grid-cols-2 gap-6"><div><label class="block text-xs font-bold text-slate-500 mb-2">WARNA PRIMARY</label><input type="color" id="f-c1" class="w-full h-12 rounded cursor-pointer border-none shadow-sm" value="${config.primaryColor}"></div><div><label class="block text-xs font-bold text-slate-500 mb-2">WARNA SECONDARY</label><input type="color" id="f-c2" class="w-full h-12 rounded cursor-pointer border-none shadow-sm" value="${config.secondaryColor}"></div></div>
                                 </div>
                                 <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col h-max">
-                                    <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-money-bill-trend-up text-primary mr-2"></i> Papan Kurs & Bunga (Di TV)</h3>
+                                    <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-money-bill-trend-up text-primary mr-2"></i> Papan Kurs & Bunga</h3>
                                     <div id="rates-container" class="mb-4">${ratesHtmlAdmin}</div>
                                     <button onclick="addRate()" class="bg-blue-50 text-blue-600 p-3 rounded-xl border border-blue-200 font-bold text-sm hover:bg-blue-100"><i class="fa-solid fa-plus mr-2"></i> Tambah Baris Kurs/Bunga</button>
                                 </div>
                             </div>
                         </div>
                         
+                        <!-- TAB KIOSK -->
                         <div id="tab-kiosk" class="tab-content max-w-4xl pt-16">
-                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Desain Layar Kiosk</h2>
+                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Desain Layar Kiosk Nasabah</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6 mb-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">PILIH TEMA KIOSK</label>
                                     <div class="grid grid-cols-3 gap-4">
-                                        <div onclick="selectTheme('kiosk', 'default')" id="theme-kiosk-default" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='default'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="h-20 bg-slate-900 rounded-lg mb-3 relative overflow-hidden"><div class="absolute w-8 h-8 bg-primary rounded-full blur-sm top-2 left-2"></div></div><div class="font-bold text-sm">Glassmorphism</div></div>
-                                        <div onclick="selectTheme('kiosk', 'minimalist')" id="theme-kiosk-minimalist" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='minimalist'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="h-20 bg-white border border-slate-200 rounded-lg mb-3 flex items-center justify-center"><div class="w-10 h-10 bg-slate-100 rounded"></div></div><div class="font-bold text-sm">Minimalist Clean</div></div>
-                                        <div onclick="selectTheme('kiosk', 'vibrant')" id="theme-kiosk-vibrant" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='vibrant'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="h-20 bg-gradient-to-br from-indigo-500 to-pink-500 rounded-lg mb-3"></div><div class="font-bold text-sm">Vibrant Gradient</div></div>
+                                        <div onclick="selectTheme('kiosk', 'default')" id="theme-kiosk-default" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='default'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}">
+                                            <div class="ui-preview-box bg-slate-900 flex flex-col items-center justify-center mb-2"><div class="w-8 h-8 rounded-full bg-primary/50 blur-sm"></div></div><div class="font-bold text-sm">Glassmorphism</div>
+                                        </div>
+                                        <div onclick="selectTheme('kiosk', 'minimalist')" id="theme-kiosk-minimalist" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='minimalist'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}">
+                                            <div class="ui-preview-box bg-white flex flex-col items-center justify-center mb-2" style="background-image: radial-gradient(#004A99 1px, transparent 1px); background-size: 10px 10px;"><div class="w-8 h-8 bg-slate-100 border"></div></div><div class="font-bold text-sm">Minimalist</div>
+                                        </div>
+                                        <div onclick="selectTheme('kiosk', 'vibrant')" id="theme-kiosk-vibrant" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='vibrant'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}">
+                                            <div class="ui-preview-box bg-gradient-to-br from-indigo-500 to-pink-500 flex flex-col items-center justify-center mb-2"></div><div class="font-bold text-sm">Vibrant</div>
+                                        </div>
                                     </div><input type="hidden" id="f-ktheme" value="${config.kioskTheme}">
                                 </div>
                             </div>
@@ -511,43 +565,54 @@
                             </div>
                         </div>
 
+                        <!-- TAB DISPLAY BANKING HALL -->
                         <div id="tab-display" class="tab-content max-w-4xl pt-16">
-                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Desain Layar Banking Hall</h2>
+                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Media Layar Banking Hall</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6 mb-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">PILIH TEMA LAYAR TV</label>
                                     <div class="grid grid-cols-3 gap-4">
-                                        <div onclick="selectTheme('display', 'modern-split')" id="theme-display-modern-split" class="theme-card-display border-2 p-4 rounded-xl cursor-pointer text-center ${config.displayTheme==='modern-split'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="h-20 bg-slate-200 rounded-lg mb-3 flex overflow-hidden"><div class="w-2/3 bg-slate-800"></div><div class="w-1/3 bg-white"></div></div><div class="font-bold text-sm">Modern Split</div></div>
-                                        <div onclick="selectTheme('display', 'elegant-dark')" id="theme-display-elegant-dark" class="theme-card-display border-2 p-4 rounded-xl cursor-pointer text-center ${config.displayTheme==='elegant-dark'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="h-20 bg-slate-900 rounded-lg mb-3 flex flex-col items-center justify-center"><div class="w-10 h-10 bg-white/20 rounded-full"></div></div><div class="font-bold text-sm">Cinematic Dark</div></div>
-                                        <div onclick="selectTheme('display', 'focus-grid')" id="theme-display-focus-grid" class="theme-card-display border-2 p-4 rounded-xl cursor-pointer text-center ${config.displayTheme==='focus-grid'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="h-20 bg-slate-200 rounded-lg mb-3 flex overflow-hidden"><div class="w-1/3 bg-white border-r"></div><div class="w-2/3 bg-slate-100"><div class="h-1/2 bg-slate-800"></div></div></div><div class="font-bold text-sm">Focus Grid</div></div>
+                                        <div onclick="selectTheme('display', 'modern-split')" id="theme-display-modern-split" class="theme-card-display border-2 p-4 rounded-xl cursor-pointer text-center ${config.displayTheme==='modern-split'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}">
+                                            <div class="ui-preview-box bg-slate-800 mb-2 flex"><div class="w-2/3 border-r"></div><div class="w-1/3 bg-white"></div></div><div class="font-bold text-sm">Modern Split</div>
+                                        </div>
+                                        <div onclick="selectTheme('display', 'elegant-dark')" id="theme-display-elegant-dark" class="theme-card-display border-2 p-4 rounded-xl cursor-pointer text-center ${config.displayTheme==='elegant-dark'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}">
+                                            <div class="ui-preview-box bg-slate-900 mb-2 flex items-center justify-center"><div class="w-10 h-10 rounded-full border"></div></div><div class="font-bold text-sm">Cinematic Dark</div>
+                                        </div>
+                                        <div onclick="selectTheme('display', 'focus-grid')" id="theme-display-focus-grid" class="theme-card-display border-2 p-4 rounded-xl cursor-pointer text-center ${config.displayTheme==='focus-grid'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}">
+                                            <div class="ui-preview-box bg-white mb-2 flex"><div class="w-1/3 border-r bg-slate-100"></div><div class="w-2/3 bg-slate-50"><div class="h-1/2 bg-slate-300 border-b"></div></div></div><div class="font-bold text-sm">Focus Grid</div>
+                                        </div>
                                     </div><input type="hidden" id="f-dtheme" value="${config.displayTheme}">
                                 </div>
                             </div>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">RUNNING TEXT BAWAH</label><textarea id="f-text" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" rows="2">${config.runningText}</textarea></div>
-                                <div class="grid grid-cols-2 gap-6 border-t pt-6">
-                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">TIPE MEDIA</label><select id="f-vtype" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none"><option value="youtube" ${config.mediaType==='youtube'?'selected':''}>YouTube Video ID</option><option value="slideshow" ${config.mediaType==='slideshow'?'selected':''}>Foto Slideshow</option></select></div>
-                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">UPLOAD KE CLOUD (Utk Slideshow)</label><div class="flex gap-2"><input type="file" id="f-slideshow-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-vsource', true)"><button onclick="document.getElementById('f-slideshow-file').click()" class="bg-blue-100 text-blue-700 px-4 py-3 rounded-xl font-bold text-sm border border-blue-200 w-full hover:bg-blue-200"><i class="fa-solid fa-cloud-arrow-up mr-2"></i> Tambah Foto</button></div></div>
-                                    <div class="col-span-2"><label class="block text-xs font-bold text-slate-500 mb-2">SUMBER ID / URL (Bisa dipisah koma max 10 foto)</label><textarea id="f-vsource" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-mono" rows="3">${config.mediaSource}</textarea></div>
+                                
+                                <div class="border-t border-slate-200 pt-6">
+                                    <div class="flex justify-between items-center mb-4"><h3 class="font-black text-slate-700 uppercase tracking-widest text-sm"><i class="fa-solid fa-photo-film text-primary mr-2"></i> Playlist Media (Maks 10)</h3><button onclick="addPlaylistRow()" class="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-bold text-xs hover:bg-blue-100"><i class="fa-solid fa-plus"></i> Tambah Media</button></div>
+                                    <div id="playlist-container" class="flex flex-col gap-3"></div>
                                 </div>
                             </div>
                         </div>
 
-                        <div id="tab-printer" class="tab-content max-w-5xl pt-16">
-                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Hardware: Printer & Suara</h2>
-                            <div class="grid grid-cols-2 gap-8 mb-8">
-                                <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
-                                    <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-volume-high text-primary mr-2"></i> Suara Pemanggil</h3>
-                                    <label class="block text-xs font-bold text-slate-500 mb-2">PILIH JENIS SUARA (OS Local)</label>
-                                    <select id="f-voice" class="w-full p-3 bg-slate-50 border rounded-xl font-bold mb-4 outline-none text-sm"></select>
-                                    <div class="grid grid-cols-2 gap-4 mb-4"><div><label class="block text-xs font-bold text-slate-500 mb-1">PITCH (Nada)</label><input type="range" id="f-pitch" min="0" max="2" step="0.1" value="${config.voiceConfig.pitch}" class="w-full"></div><div><label class="block text-xs font-bold text-slate-500 mb-1">RATE (Kecepatan)</label><input type="range" id="f-rate" min="0.5" max="2" step="0.1" value="${config.voiceConfig.rate}" class="w-full"></div></div>
-                                    <button onclick="testVoice()" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-bold text-sm border hover:bg-slate-200 mt-auto"><i class="fa-solid fa-play mr-2"></i> Test Suara</button>
+                        <!-- TAB HARDWARE (USB PRINTER, CAMERA, VOICE) -->
+                        <div id="tab-printer" class="tab-content max-w-6xl pt-16">
+                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Hardware: Printer, Kamera & Suara</h2>
+                            
+                            <div class="grid grid-cols-3 gap-6 mb-8">
+                                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
+                                    <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-camera text-primary mr-2"></i> Pilihan Kamera PC</h3>
+                                    <select id="f-camera" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none text-sm mb-4"><option value="">-- Pilih Kamera Kiosk --</option></select>
+                                    <button onclick="scanCameras()" class="bg-slate-800 text-white px-4 py-3 rounded-xl font-bold text-xs w-full hover:bg-black mt-auto"><i class="fa-solid fa-rotate mr-2"></i> Deteksi Kamera</button>
                                 </div>
-                                <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
                                     <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-usb text-primary mr-2"></i> Scanner Printer USB</h3>
-                                    <p class="text-xs text-slate-500 mb-4">Fitur WebUSB untuk melacak perangkat pencetak terhubung ke PC.</p>
-                                    <button onclick="scanUSB()" class="bg-blue-100 text-blue-700 px-4 py-3 rounded-xl font-bold text-sm border border-blue-200 w-full hover:bg-blue-200 mb-4"><i class="fa-solid fa-magnifying-glass mr-2"></i> Scan Perangkat USB Terhubung</button>
-                                    <div id="usb-list" class="bg-slate-50 p-4 rounded-xl border border-slate-200 h-24 overflow-auto text-xs font-mono text-slate-600">Klik scan untuk memulai...</div>
-                                    <p class="text-[10px] text-slate-400 mt-2 italic">*Untuk print otomatis tanpa dialog, gunakan shortcut Chrome dengan flag <b>--kiosk-printing</b>.</p>
+                                    <div id="usb-status" class="bg-slate-50 p-4 rounded-xl border border-slate-200 h-16 overflow-hidden text-xs font-bold text-slate-600 mb-4 flex items-center justify-center">Belum ada perangkat terpilih</div>
+                                    <button onclick="scanUSB()" class="bg-blue-100 text-blue-700 px-4 py-3 rounded-xl font-bold text-xs w-full hover:bg-blue-200 mt-auto"><i class="fa-solid fa-magnifying-glass mr-2"></i> Pilih USB Printer Baru</button>
+                                </div>
+                                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
+                                    <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-volume-high text-primary mr-2"></i> Suara Pemanggil</h3>
+                                    <select id="f-voice" class="w-full p-2 bg-slate-50 border rounded-xl font-bold mb-3 outline-none text-xs truncate"></select>
+                                    <div class="grid grid-cols-2 gap-2 mb-3"><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Nada</label><input type="range" id="f-pitch" min="0" max="2" step="0.1" value="${config.voiceConfig.pitch}" class="w-full"></div><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Cepat</label><input type="range" id="f-rate" min="0.5" max="2" step="0.1" value="${config.voiceConfig.rate}" class="w-full"></div></div>
+                                    <button onclick="testVoice()" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-bold text-xs border hover:bg-slate-200 mt-auto"><i class="fa-solid fa-play mr-2"></i> Test</button>
                                 </div>
                             </div>
 
@@ -555,8 +620,8 @@
                                 <div class="col-span-8 bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
                                     <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-receipt text-primary mr-2"></i> Layout Cetakan Kertas</h3>
                                     <div class="grid grid-cols-4 gap-6 mb-6">
-                                        <div class="col-span-1"><label class="block text-xs font-bold text-slate-500 mb-2">UKURAN KERTAS</label><select id="f-psize" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"><option value="58mm" ${config.printerSize==='58mm'?'selected':''}>58mm</option><option value="80mm" ${config.printerSize==='80mm'?'selected':''}>80mm</option></select></div>
-                                        <div class="col-span-3"><label class="block text-xs font-bold text-slate-500 mb-2">PILIH TEMA RESI</label>
+                                        <div class="col-span-1"><label class="block text-xs font-bold text-slate-500 mb-2">KERTAS</label><select id="f-psize" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"><option value="58mm" ${config.printerSize==='58mm'?'selected':''}>58mm</option><option value="80mm" ${config.printerSize==='80mm'?'selected':''}>80mm</option></select></div>
+                                        <div class="col-span-3"><label class="block text-xs font-bold text-slate-500 mb-2">TEMA RESI (Klik untuk preview)</label>
                                             <div class="grid grid-cols-3 gap-4">
                                                 <div onclick="selectThemeReceipt('minimalist')" id="theme-receipt-minimalist" class="theme-card-receipt border-2 p-3 rounded-xl cursor-pointer text-center ${config.receiptTheme==='minimalist'?'border-primary bg-blue-50':'border-slate-200'}"><div class="font-bold text-sm">Minimalist</div></div>
                                                 <div onclick="selectThemeReceipt('standard')" id="theme-receipt-standard" class="theme-card-receipt border-2 p-3 rounded-xl cursor-pointer text-center ${config.receiptTheme==='standard'?'border-primary bg-blue-50':'border-slate-200'}"><div class="font-bold text-sm">Standard</div></div>
@@ -584,7 +649,8 @@
                             </div>
                         </div>
 
-                        <div id="tab-counter" class="tab-content max-w-5xl pt-16">
+                        <!-- TAB COUNTER -->
+                        <div id="tab-counter" class="tab-content max-w-4xl pt-16">
                             <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Manajemen Loket & Staff (GUI)</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6 mb-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">PILIH TEMA DASHBOARD STAFF</label>
@@ -599,14 +665,16 @@
                                 <h3 class="font-black text-slate-800 mb-4 flex items-center gap-2"><i class="fa-solid fa-users-gear text-primary"></i> Daftar Loket Aktif</h3>
                                 <div id="counter-manager-list" class="flex flex-col gap-3 mb-6"></div>
                                 <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 flex gap-3 items-end">
-                                    <div class="flex-grow"><label class="block text-xs font-bold text-slate-500 mb-1">Tambah Loket Baru</label><input type="text" id="new-counter-name" placeholder="Misal: CS 3 Prioritas" class="w-full p-3 border border-slate-300 rounded-lg font-bold outline-none"></div>
-                                    <button onclick="addCounterGUI()" class="bg-primary text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-800 h-[46px]"><i class="fa-solid fa-plus mr-2"></i> Tambah</button>
+                                    <div class="flex-grow"><label class="block text-xs font-bold text-slate-500 mb-1">Nama Loket</label><input type="text" id="new-counter-name" placeholder="Misal: CS Prioritas" class="w-full p-3 border border-slate-300 rounded-lg font-bold outline-none"></div>
+                                    <div><label class="block text-xs font-bold text-slate-500 mb-1">Pilih Peran (Role)</label><select id="new-counter-role" class="w-full p-3 border border-slate-300 rounded-lg font-bold outline-none"><option value="teller">TELLER</option><option value="cs">CUSTOMER SERVICE</option></select></div>
+                                    <button onclick="addCounterGUI()" class="bg-primary text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-800 h-[48px]"><i class="fa-solid fa-plus mr-2"></i> Tambah</button>
                                 </div>
                             </div>
                         </div>
 
+                        <!-- TAB REPORT -->
                         <div id="tab-report" class="tab-content w-full pt-16">
-                            <div class="flex justify-between items-center mb-6"><h2 class="text-3xl font-black text-slate-800">Visual Analytics & Laporan SLA</h2><button onclick="exportCSV()" class="btn-hover-fx bg-emerald-100 text-emerald-700 px-6 py-2 rounded-xl font-bold border border-emerald-200 shadow-sm"><i class="fa-solid fa-file-csv mr-2"></i> Export Data CSV</button></div>
+                            <div class="flex justify-between items-center mb-6"><h2 class="text-3xl font-black text-slate-800">Visual Analytics & Laporan</h2><button onclick="exportCSV()" class="btn-hover-fx bg-emerald-100 text-emerald-700 px-6 py-2 rounded-xl font-bold border border-emerald-200 shadow-sm"><i class="fa-solid fa-file-csv mr-2"></i> Export Data CSV</button></div>
                             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex gap-4 items-end mb-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-1">Dari Tanggal</label><input type="date" id="filter-start" class="p-2 border rounded-lg bg-slate-50 font-bold text-sm outline-none"></div>
                                 <div><label class="block text-xs font-bold text-slate-500 mb-1">Sampai Tanggal</label><input type="date" id="filter-end" class="p-2 border rounded-lg bg-slate-50 font-bold text-sm outline-none"></div>
@@ -614,15 +682,12 @@
                             </div>
                             <div class="grid grid-cols-3 gap-6 mb-6">
                                 <div class="col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center"><h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Distribusi Layanan</h3><div class="relative w-full aspect-square"><canvas id="doughnutChart"></canvas></div></div>
-                                <div class="col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100"><h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Trafik Kunjungan per Jam</h3><div class="relative w-full h-[250px]"><canvas id="barChart"></canvas></div></div>
+                                <div class="col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100"><h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Trafik Transaksi per Jam</h3><div class="relative w-full h-[250px]"><canvas id="barChart"></canvas></div></div>
                             </div>
                             <div class="grid grid-cols-5 gap-4 mb-6" id="dynamic-staff-stats"></div>
                             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[400px]">
                                 <div class="flex-grow overflow-auto rounded-xl border border-slate-200">
-                                    <table class="w-full text-left text-sm" id="reportTable">
-                                        <thead class="bg-slate-50 sticky top-0 z-10 shadow-sm"><tr class="text-slate-600 font-bold text-xs uppercase"><th class="p-4 border-b">WAKTU CETAK</th><th class="p-4 border-b">WAKTU PANGGIL</th><th class="p-4 border-b">TIKET / LOKET</th><th class="p-4 border-b">KEPERLUAN</th><th class="p-4 border-b text-center">FOTO</th></tr></thead>
-                                        <tbody id="r-table-body" class="divide-y divide-slate-100"></tbody>
-                                    </table>
+                                    <table class="w-full text-left text-sm" id="reportTable"><thead class="bg-slate-50 sticky top-0 z-10 shadow-sm"><tr class="text-slate-600 font-bold text-xs uppercase"><th class="p-4 border-b">WAKTU CETAK</th><th class="p-4 border-b">WAKTU PANGGIL</th><th class="p-4 border-b">TIKET / LOKET</th><th class="p-4 border-b">KEPERLUAN</th><th class="p-4 border-b text-center">FOTO</th></tr></thead><tbody id="r-table-body" class="divide-y divide-slate-100"></tbody></table>
                                 </div>
                             </div>
                         </div>
@@ -630,90 +695,87 @@
                     </div>
                 </div>
             `;
-            renderCounterManagerGUI();
+            
+            renderPlaylistGUI(); renderCounterManagerGUI();
             if(voices.length > 0) populateVoiceSelect();
+            if(hardwareSettings.printerName) document.getElementById('usb-status').innerHTML = `<span class="text-green-600"><i class="fa-solid fa-check mr-2"></i> ${hardwareSettings.printerName}</span>`;
+            scanCameras(true); // populate camera silently
             loadAdminReports();
         }
 
-        // Logic Scanner WebUSB
+        // ==========================================
+        // ADMIN LOGIC MODULES
+        // ==========================================
+
+        function checkPin() { if(document.getElementById('admin-pin').value === '123456') { sessionStorage.setItem('adminUnlocked', 'true'); document.getElementById('top-nav').style.display = 'flex'; renderAdmin(document.getElementById('app-container')); } else { Swal.fire({icon: 'error', title: 'Ditolak', text: 'PIN Salah'}); document.getElementById('admin-pin').value = ''; } }
+        function lockAdmin() { sessionStorage.removeItem('adminUnlocked'); renderAdminLock(document.getElementById('app-container')); }
+        function switchTab(tabId, btn) { document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active')); document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active')); document.getElementById(tabId).classList.add('active'); btn.classList.add('active'); }
+        function selectTheme(category, themeName) { document.getElementById(`f-${category.charAt(0)}theme`).value = themeName; document.querySelectorAll(`.theme-card-${category}`).forEach(el => el.classList.remove('border-primary', 'bg-blue-50', 'ring-4', 'ring-primary/20')); const selectedCard = document.getElementById(`theme-${category}-${themeName}`); if(selectedCard) selectedCard.classList.add('border-primary', 'bg-blue-50', 'ring-4', 'ring-primary/20'); }
+        function selectThemeReceipt(themeName) { document.getElementById(`f-rtheme`).value = themeName; document.querySelectorAll(`.theme-card-receipt`).forEach(el => el.classList.remove('border-primary', 'bg-blue-50')); const selectedCard = document.getElementById(`theme-receipt-${themeName}`); if(selectedCard) selectedCard.classList.add('border-primary', 'bg-blue-50'); const previewBox = document.getElementById('live-receipt-preview'); previewBox.className = `bg-white w-[58mm] text-black text-xs font-mono shadow-md transition-all duration-300 mx-auto preview-${themeName}`; }
+        function updateLiveReceipt() { document.getElementById('prev-header').innerText = document.getElementById('f-cheader').value; document.getElementById('prev-footer').innerText = document.getElementById('f-cfooter').value; document.getElementById('prev-disc').innerText = document.getElementById('f-cdisc').value; }
+
+        // Playlist Builder GUI
+        function renderPlaylistGUI() {
+            const container = document.getElementById('playlist-container'); if(!container) return;
+            container.innerHTML = config.playlist.map((m, i) => `
+                <div class="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl" id="plRow_${i}">
+                    <span class="font-black text-slate-400 w-6">${i+1}.</span>
+                    <select id="plType_${i}" class="p-2 border rounded-lg text-xs font-bold outline-none"><option value="image" ${m.type==='image'?'selected':''}>Foto</option><option value="youtube" ${m.type==='youtube'?'selected':''}>Video YT</option></select>
+                    <input type="text" id="plUrl_${i}" value="${m.url}" placeholder="URL Gambar / ID Youtube" class="flex-grow p-2 border rounded-lg text-xs outline-none font-mono">
+                    
+                    <!-- Upload Khusus Foto Playlist -->
+                    <input type="file" id="plFile_${i}" accept="image/*" class="hidden" onchange="uploadMedia(this, 'plUrl_${i}')">
+                    <button onclick="document.getElementById('plFile_${i}').click()" title="Upload Foto" class="bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs hover:bg-slate-300"><i class="fa-solid fa-upload"></i></button>
+                    
+                    <div class="flex items-center gap-1 w-24 bg-white border rounded-lg p-1"><input type="number" id="plDur_${i}" value="${m.duration}" class="w-full text-center text-xs font-bold outline-none"><span class="text-[10px] text-slate-400 pr-1">detik</span></div>
+                    <button onclick="document.getElementById('plRow_${i}').remove()" class="text-red-500 px-2 hover:text-red-700"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            `).join('');
+        }
+        function addPlaylistRow() { if(config.playlist.length >= 10) return Swal.fire('Batas Penuh','Maksimal 10 media.','warning'); config.playlist.push({type:'image', url:'', duration:15}); renderPlaylistGUI(); }
+
+        // Scanner USB & Kamera Memory
         async function scanUSB() {
-            try { const device = await navigator.usb.requestDevice({ filters: [] }); document.getElementById('usb-list').innerHTML = `<span class="text-green-600 font-bold">Terdeteksi:</span> ${device.productName || 'Perangkat USB'} (Vendor: ${device.vendorId})`; } catch(e) { document.getElementById('usb-list').innerHTML = `<span class="text-red-500">Batal / Tidak ada izin USB.</span>`; }
+            try { const device = await navigator.usb.requestDevice({ filters: [] }); hardwareSettings.printer = device.serialNumber || device.productName; hardwareSettings.printerName = device.productName || 'Thermal USB'; localStorage.setItem('hardwareSettings', JSON.stringify(hardwareSettings)); document.getElementById('usb-status').innerHTML = `<span class="text-green-600 font-bold"><i class="fa-solid fa-check mr-2"></i> ${hardwareSettings.printerName}</span>`; } 
+            catch(e) { document.getElementById('usb-status').innerHTML = `<span class="text-red-500">Izin USB dibatalkan.</span>`; }
+        }
+        async function scanCameras(silent = false) {
+            try { await navigator.mediaDevices.getUserMedia({video: true}); const devices = await navigator.mediaDevices.enumerateDevices(); const videoInputs = devices.filter(d => d.kind === 'videoinput'); const select = document.getElementById('f-camera'); if(!select) return; select.innerHTML = '<option value="">-- Gunakan Kamera Default --</option>' + videoInputs.map(cam => `<option value="${cam.deviceId}" ${hardwareSettings.camera === cam.deviceId ? 'selected' : ''}>${cam.label || 'Kamera ' + cam.deviceId.substring(0,5)}</option>`).join(''); select.onchange = (e) => { hardwareSettings.camera = e.target.value; localStorage.setItem('hardwareSettings', JSON.stringify(hardwareSettings)); Toast.fire({icon:'success',title:'Kamera disimpan'}); }; if(!silent) Toast.fire({icon:'success',title:'Deteksi Selesai'}); } 
+            catch(e){ if(!silent) Swal.fire('Error','Izin kamera ditolak browser.','error'); }
         }
 
-        // Logic Voice / Speech Selection
-        function populateVoiceSelect() {
-            const select = document.getElementById('f-voice'); if(!select) return;
-            select.innerHTML = voices.map(v => `<option value="${v.voiceURI}" ${config.voiceConfig.voiceURI === v.voiceURI ? 'selected' : ''}>${v.name} (${v.lang})</option>`).join('');
-        }
-        function testVoice() {
-            const msg = new SpeechSynthesisUtterance("Nomor Antrian, T 1, Silahkan Menuju, Teller 1");
-            const vURI = document.getElementById('f-voice').value; const v = voices.find(vo => vo.voiceURI === vURI); if(v) msg.voice = v;
-            msg.pitch = parseFloat(document.getElementById('f-pitch').value); msg.rate = parseFloat(document.getElementById('f-rate').value); msg.lang = 'id-ID'; speechSynthesis.speak(msg);
-        }
+        function populateVoiceSelect() { const select = document.getElementById('f-voice'); if(!select) return; select.innerHTML = voices.map(v => `<option value="${v.voiceURI}" ${config.voiceConfig.voiceURI === v.voiceURI ? 'selected' : ''}>${v.name} (${v.lang})</option>`).join(''); }
+        function testVoice() { const msg = new SpeechSynthesisUtterance("Nomor Antrian, T 1, Silahkan Menuju, Teller 1"); const vURI = document.getElementById('f-voice').value; const v = voices.find(vo => vo.voiceURI === vURI); if(v) msg.voice = v; msg.pitch = parseFloat(document.getElementById('f-pitch').value); msg.rate = parseFloat(document.getElementById('f-rate').value); msg.lang = 'id-ID'; speechSynthesis.speak(msg); }
+        function addRate() { const i = document.querySelectorAll('[id^="rname_"]').length; const html = `<div class="flex gap-2 mb-2 items-center" id="rateRow_${i}"><input type="text" id="rname_${i}" placeholder="Nama" class="w-1/2 p-2 bg-slate-50 border rounded font-bold text-sm"><input type="text" id="rval_${i}" placeholder="Nilai" class="w-1/2 p-2 bg-slate-50 border rounded text-sm text-primary font-black"><button onclick="document.getElementById('rateRow_${i}').remove()" class="text-red-500 hover:text-red-700 px-2"><i class="fa-solid fa-trash"></i></button></div>`; document.getElementById('rates-container').insertAdjacentHTML('beforeend', html); }
 
-        // Logic Rates Array Builder
-        function addRate() {
-            const i = document.querySelectorAll('[id^="rname_"]').length;
-            const html = `<div class="flex gap-2 mb-2 items-center" id="rateRow_${i}"><input type="text" id="rname_${i}" placeholder="Nama Info" class="w-1/2 p-2 bg-slate-50 border rounded font-bold text-sm"><input type="text" id="rval_${i}" placeholder="Nilai" class="w-1/2 p-2 bg-slate-50 border rounded text-sm text-primary font-black"><button onclick="document.getElementById('rateRow_${i}').remove()" class="text-red-500 hover:text-red-700 px-2"><i class="fa-solid fa-trash"></i></button></div>`;
-            document.getElementById('rates-container').insertAdjacentHTML('beforeend', html);
-        }
-
-        // Drive File Upload Base64
-        function uploadMedia(input, targetId, append = false) {
+        function uploadMedia(input, targetId) {
             const file = input.files[0]; if(!file) return;
-            Swal.fire({ title: 'Uploading ke Google Drive...', text: 'Pastikan Anda telah menjalankan fungsi otorisasiDrive() di Apps Script.', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+            Swal.fire({ title: 'Uploading ke Cloud...', text: 'Tunggu sebentar...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
             const reader = new FileReader();
             reader.onload = async function(e) {
                 const base64 = e.target.result.split(',')[1];
                 try {
                     const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'uploadMedia', filename: file.name, mimeType: file.type, base64: base64 }) });
                     const data = await res.json();
-                    if(data.success) {
-                        const targetEl = document.getElementById(targetId);
-                        if(append) targetEl.value = targetEl.value ? targetEl.value + ', ' + data.url : data.url; else targetEl.value = data.url;
-                        Swal.fire('Berhasil', 'File tersimpan di Google Drive.', 'success');
-                    } else Swal.fire('Gagal', data.msg, 'error');
+                    if(data.success) { document.getElementById(targetId).value = data.url; Swal.fire('Berhasil', 'File tersimpan di Google Drive.', 'success'); } 
+                    else Swal.fire('Gagal', data.msg, 'error');
                 } catch(err) { Swal.fire('Error', 'Gagal upload. Periksa Izin Script.', 'error'); }
             }; reader.readAsDataURL(file);
         }
 
-        function renderAdminLock(el) { document.getElementById('top-nav').style.display = 'none'; el.innerHTML = `<div class="h-full flex items-center justify-center bg-slate-900 relative"><div class="orb bg-primary" style="width: 400px; height: 400px; top: 10%; left: 20%;"></div><div class="bg-white/10 backdrop-blur-xl p-10 rounded-[3rem] shadow-2xl text-center max-w-sm w-full border border-white/20 z-10"><i class="fa-solid fa-shield-halved text-6xl text-white mb-6"></i><h2 class="text-2xl font-black text-white mb-2">Otorisasi Admin</h2><p class="text-sm text-white/70 font-medium mb-8">Masukkan PIN (Default: 123456)</p><input type="password" id="admin-pin" class="w-full text-center text-3xl font-black tracking-[0.5em] p-4 bg-white/20 text-white border-2 border-white/30 rounded-2xl mb-6 outline-none focus:border-white transition-colors placeholder-white/30" placeholder="••••••" maxlength="6"><button onclick="checkPin()" class="btn-hover-fx w-full bg-white text-slate-900 py-4 rounded-xl font-black shadow-lg">BUKA DASHBOARD</button></div></div>`; }
-        function checkPin() { if(document.getElementById('admin-pin').value === '123456') { sessionStorage.setItem('adminUnlocked', 'true'); document.getElementById('top-nav').style.display = 'flex'; renderAdmin(document.getElementById('app-container')); } else { Swal.fire({icon: 'error', title: 'Akses Ditolak', text: 'PIN Salah'}); document.getElementById('admin-pin').value = ''; } }
-        function lockAdmin() { sessionStorage.removeItem('adminUnlocked'); renderAdminLock(document.getElementById('app-container')); }
-
-        function switchTab(tabId, btn) { document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active')); document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active')); document.getElementById(tabId).classList.add('active'); btn.classList.add('active'); }
-        
-        function selectTheme(category, themeName) {
-            document.getElementById(`f-${category.charAt(0)}theme`).value = themeName; document.querySelectorAll(`.theme-card-${category}`).forEach(el => el.classList.remove('border-primary', 'bg-blue-50', 'ring-4', 'ring-primary/20')); const selectedCard = document.getElementById(`theme-${category}-${themeName}`); if(selectedCard) selectedCard.classList.add('border-primary', 'bg-blue-50', 'ring-4', 'ring-primary/20');
-        }
-
-        // Receipt Preview Theme Selection
-        function selectThemeReceipt(themeName) {
-            document.getElementById(`f-rtheme`).value = themeName;
-            document.querySelectorAll(`.theme-card-receipt`).forEach(el => el.classList.remove('border-primary', 'bg-blue-50'));
-            const selectedCard = document.getElementById(`theme-receipt-${themeName}`); if(selectedCard) selectedCard.classList.add('border-primary', 'bg-blue-50');
-            const previewBox = document.getElementById('live-receipt-preview');
-            previewBox.className = `bg-white w-[58mm] text-black text-xs font-mono shadow-md transition-all duration-300 mx-auto preview-${themeName}`;
-        }
-
-        function updateLiveReceipt() {
-            document.getElementById('prev-header').innerText = document.getElementById('f-cheader').value;
-            document.getElementById('prev-footer').innerText = document.getElementById('f-cfooter').value;
-            document.getElementById('prev-disc').innerText = document.getElementById('f-cdisc').value;
-        }
-
-        // GUI Counter Manager Builder
+        // GUI Counter Builder
         function renderCounterManagerGUI() {
-            const baseUrl = window.location.origin + window.location.pathname; const container = document.getElementById('counter-manager-list'); if(!container) return; config.counters = config.counters.filter(c => c.trim() !== '');
-            container.innerHTML = config.counters.map((c, idx) => { let role = c.toLowerCase().includes('cs') ? 'cs' : 'teller'; let link = `${baseUrl}?view=staff&role=${role}&name=${encodeURIComponent(c)}`; return `<div class="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm"><div class="font-black text-slate-700 w-40 truncate uppercase text-sm flex items-center gap-2"><i class="fa-solid ${role==='teller'?'fa-vault text-blue-500':'fa-user-tie text-orange-500'}"></i> ${c}</div><input type="text" readonly value="${link}" class="flex-grow text-[11px] p-2 bg-slate-50 border border-slate-100 rounded outline-none text-slate-500 font-mono"><button onclick="navigator.clipboard.writeText('${link}').then(()=>Toast.fire({icon:'success',title:'URL Link dicopy!'}))" class="bg-slate-800 text-white px-4 py-2 rounded font-bold text-xs hover:bg-black transition-colors" title="Copy Link URL"><i class="fa-solid fa-copy"></i> Copy</button><button onclick="config.counters.splice(${idx}, 1); renderCounterManagerGUI();" class="bg-red-50 text-red-500 px-4 py-2 rounded font-bold text-xs hover:bg-red-100 transition-colors"><i class="fa-solid fa-trash"></i></button></div>`; }).join('');
+            const baseUrl = window.location.origin + window.location.pathname; const container = document.getElementById('counter-manager-list'); if(!container) return; 
+            container.innerHTML = config.counters.map((c, idx) => { 
+                let link = `${baseUrl}?view=staff&role=${c.role}&name=${encodeURIComponent(c.name)}`; 
+                return `<div class="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm"><div class="font-black text-slate-700 w-48 truncate uppercase text-sm flex items-center gap-2"><i class="fa-solid ${c.role==='teller'?'fa-vault text-blue-500':'fa-user-tie text-orange-500'}"></i> ${c.name}</div><div class="bg-slate-100 text-[10px] font-bold px-2 py-1 rounded text-slate-500 uppercase">${c.role}</div><input type="text" readonly value="${link}" class="flex-grow text-[11px] p-2 bg-slate-50 border border-slate-100 rounded outline-none text-slate-500 font-mono"><button onclick="navigator.clipboard.writeText('${link}').then(()=>Toast.fire({icon:'success',title:'URL Link dicopy!'}))" class="bg-slate-800 text-white px-4 py-2 rounded font-bold text-xs hover:bg-black transition-colors" title="Copy Link URL"><i class="fa-solid fa-copy"></i> Copy</button><button onclick="config.counters.splice(${idx}, 1); renderCounterManagerGUI();" class="bg-red-50 text-red-500 px-4 py-2 rounded font-bold text-xs hover:bg-red-100 transition-colors"><i class="fa-solid fa-trash"></i></button></div>`; 
+            }).join('');
         }
-        function addCounterGUI() { const name = document.getElementById('new-counter-name').value.trim(); if(name) { config.counters.push(name); renderCounterManagerGUI(); document.getElementById('new-counter-name').value = ''; } }
+        function addCounterGUI() { const name = document.getElementById('new-counter-name').value.trim(); const role = document.getElementById('new-counter-role').value; if(name) { config.counters.push({name, role}); renderCounterManagerGUI(); document.getElementById('new-counter-name').value = ''; } }
 
-        // --- Chart.js & Advanced Analytics Logic ---
+        // Analytics
         async function loadAdminReports() { try { const res = await fetch(`${API_URL}?action=getReports`); rawReportData = await res.json(); const today = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Makassar'}); document.getElementById('filter-start').value = today; document.getElementById('filter-end').value = today; applyReportFilter(); } catch(e){} }
-        
         function applyReportFilter() { const start = new Date(document.getElementById('filter-start').value); start.setHours(0,0,0,0); const end = new Date(document.getElementById('filter-end').value); end.setHours(23,59,59,999); filteredData = rawReportData.filter(row => { if(!row[0]) return false; const rDate = new Date(row[0]); return rDate >= start && rDate <= end; }); renderReportTableAndCharts(); }
-        
         function renderReportTableAndCharts() {
             const tbody = document.getElementById('r-table-body'); tbody.innerHTML = ''; let staffStats = {}; let total = filteredData.length; let hourlyData = {}; let typeCount = { teller: 0, cs: 0 };
             filteredData.slice().reverse().forEach(row => {
@@ -722,24 +784,25 @@
                 const printDateStr = row[0] ? new Date(row[0]).toLocaleString('id-ID') : '-'; const callDateStr = row[7] ? new Date(row[7]).toLocaleTimeString('id-ID') : '<span class="text-slate-300 italic">Menunggu...</span>'; const photoHtml = row[5] ? `<img src="${row[5]}" class="w-10 h-10 object-cover rounded-full border border-slate-200 mx-auto transition-transform hover:scale-150">` : '-';
                 const tr = document.createElement('tr'); tr.className = "hover:bg-slate-50 transition-colors"; tr.innerHTML = `<td class="p-4 font-medium text-slate-600">${printDateStr}</td><td class="p-4 font-bold text-slate-800">${callDateStr}</td><td class="p-4"><span class="bg-${row[2]==='teller'?'blue':'orange'}-100 text-${row[2]==='teller'?'primary':'secondary'} px-3 py-1 rounded-lg font-black shadow-sm">${row[1]}</span><div class="text-[10px] mt-1 font-bold text-slate-400 uppercase tracking-widest">${row[3] || ''}</div></td><td class="p-4 font-medium text-slate-600">${row[6]}</td><td class="p-4 text-center">${photoHtml}</td>`; tbody.appendChild(tr);
             });
-            let statsHtml = `<div class="bg-primary p-4 rounded-2xl shadow-md text-white transition-transform hover:-translate-y-1"><div class="text-[10px] font-bold opacity-80 uppercase tracking-widest">Total Antrian</div><div class="text-4xl font-black mt-1">${total}</div></div>`;
+            let statsHtml = `<div class="bg-primary p-4 rounded-2xl shadow-md text-white transition-transform hover:-translate-y-1"><div class="text-[10px] font-bold opacity-80 uppercase tracking-widest">Total Cetak</div><div class="text-4xl font-black mt-1">${total}</div></div>`;
             Object.keys(staffStats).forEach(name => { if(name !== 'Belum Dipanggil' && name !== 'Ditransfer') { statsHtml += `<div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm transition-transform hover:-translate-y-1"><div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${name}</div><div class="text-3xl font-black text-slate-700 mt-1">${staffStats[name]}</div></div>`; } }); document.getElementById('dynamic-staff-stats').innerHTML = statsHtml;
             renderCharts(typeCount, hourlyData);
         }
-
         function renderCharts(typeCount, hourlyData) {
-            const dCtx = document.getElementById('doughnutChart').getContext('2d'); if(dChartInstance) dChartInstance.destroy(); dChartInstance = new Chart(dCtx, { type: 'doughnut', data: { labels: ['Teller', 'Customer Service'], datasets: [{ data: [typeCount.teller, typeCount.cs], backgroundColor: [config.primaryColor, config.secondaryColor], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom' } } } });
-            const bCtx = document.getElementById('barChart').getContext('2d'); if(bChartInstance) bChartInstance.destroy(); const labels = Array.from({length: 9}, (_, i) => `${i+8}:00`); const data = labels.map((_, i) => hourlyData[i+8] || 0); bChartInstance = new Chart(bCtx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Jumlah Antrian', data: data, backgroundColor: config.primaryColor, borderRadius: 5 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } } });
+            const dCtx = document.getElementById('doughnutChart').getContext('2d'); if(dChartInstance) dChartInstance.destroy(); dChartInstance = new Chart(dCtx, { type: 'doughnut', data: { labels: ['Teller', 'CS'], datasets: [{ data: [typeCount.teller, typeCount.cs], backgroundColor: [config.primaryColor, config.secondaryColor], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom' } } } });
+            const bCtx = document.getElementById('barChart').getContext('2d'); if(bChartInstance) bChartInstance.destroy(); const labels = Array.from({length: 9}, (_, i) => `${i+8}:00`); const data = labels.map((_, i) => hourlyData[i+8] || 0); bChartInstance = new Chart(bCtx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Antrian', data: data, backgroundColor: config.primaryColor, borderRadius: 5 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } } });
         }
         function exportCSV() { if(filteredData.length === 0) return Swal.fire('Kosong', 'Tidak ada data untuk diekspor.', 'info'); let csvContent = "data:text/csv;charset=utf-8,Waktu Cetak,Nomor Tiket,Tipe,Nama Loket,Status,Keperluan,Waktu Panggil\n"; filteredData.forEach(row => { csvContent += `${row[0]},${row[1]},${row[2]},${row[3]},${row[4]},"${row[6]}",${row[7]}\r\n`; }); const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent)); link.setAttribute("download", "Laporan_Antrian_SLA.csv"); document.body.appendChild(link); link.click(); document.body.removeChild(link); }
-        
+
         async function saveAdminConfig() { 
             Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); 
             let newRates = []; document.querySelectorAll('[id^="rname_"]').forEach((el) => { const valId = el.id.replace('rname_', 'rval_'); if(el.value.trim() !== '') newRates.push({ name: el.value.trim(), value: document.getElementById(valId).value.trim() }); });
+            let newPlaylist = []; document.querySelectorAll('[id^="plRow_"]').forEach(el => { const id = el.id.split('_')[1]; const url = document.getElementById(`plUrl_${id}`).value.trim(); if(url !== '') newPlaylist.push({ type: document.getElementById(`plType_${id}`).value, url: url, duration: parseInt(document.getElementById(`plDur_${id}`).value) || 15 }); });
+            
             const newConfig = { 
                 bankName: document.getElementById('f-bname').value, bankLogo: document.getElementById('f-logo').value, primaryColor: document.getElementById('f-c1').value, secondaryColor: document.getElementById('f-c2').value, 
                 kioskWelcomeTitle: document.getElementById('f-ktitle').value, kioskWelcomeDesc: document.getElementById('f-kdesc').value, 
-                runningText: document.getElementById('f-text').value, mediaType: document.getElementById('f-vtype').value, mediaSource: document.getElementById('f-vsource').value, 
+                runningText: document.getElementById('f-text').value, playlist: newPlaylist,
                 printerSize: document.getElementById('f-psize').value, receiptTheme: document.getElementById('f-rtheme').value, receiptTemplate: { header: document.getElementById('f-cheader').value, footer: document.getElementById('f-cfooter').value, disclaimer: document.getElementById('f-cdisc').value }, 
                 counters: config.counters, rates: newRates, kioskTheme: document.getElementById('f-ktheme').value, displayTheme: document.getElementById('f-dtheme').value, counterTheme: document.getElementById('f-ctheme').value,
                 voiceConfig: { voiceURI: document.getElementById('f-voice')?.value || "", pitch: document.getElementById('f-pitch')?.value || 1, rate: document.getElementById('f-rate')?.value || 0.85 }
@@ -747,7 +810,7 @@
             try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'updateConfig', config: newConfig }) }); if(res.ok) { Swal.fire('Berhasil!', 'Sistem diperbarui.', 'success').then(() => location.reload()); } } catch(e) { Swal.fire('Error', 'Gagal menyimpan.', 'error'); } 
         }
         
-        async function resetQueue() { const result = await Swal.fire({ title: 'Reset Antrian?', text: "Kembali ke T-0. Lakukan hanya jika Auto-Reset malam hari gagal.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Reset Manual' }); if (result.isConfirmed) { Swal.fire({ title: 'Mereset...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'resetQueue' }) }); const data = await res.json(); if(data.success) Swal.fire('Selesai!', data.msg, 'success'); } }
+        async function resetQueue() { const result = await Swal.fire({ title: 'Reset Antrian?', text: "Kembali ke 0 secara manual.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Reset Manual' }); if (result.isConfirmed) { Swal.fire({ title: 'Mereset...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'resetQueue' }) }); const data = await res.json(); if(data.success) Swal.fire('Selesai!', data.msg, 'success'); } }
         
         init();
     </script>
