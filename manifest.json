@@ -1,0 +1,16 @@
+{
+  "name": "Superapp Antrian Enterprise",
+  "short_name": "Antrian Bank",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#F4F7FE",
+  "theme_color": "#004A99",
+  "description": "Aplikasi Sistem Antrian Kiosk, Layar TV, dan Counter Bankaltimtara.",
+  "icons": [
+    {
+      "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Bank_Kaltimtara_logo.svg/512px-Bank_Kaltimtara_logo.svg.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
