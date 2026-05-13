@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Antrian Ultimate v16.2</title>
+    <title>Sistem Antrian Ultimate v18</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -60,29 +60,27 @@
 
     <script>
         // ==========================================
-        // URL DEPLOYMENT BARU GOOGLE APPS SCRIPT
+        // GANTI DENGAN URL DEPLOYMENT BARU GOOGLE APPS SCRIPT ANDA
         // ==========================================
-        const API_URL = 'https://script.google.com/macros/s/AKfycbyLjeuXEv_PXF1uvfMnHF8rlVEn4rFhDD77q27dOMu7_CfbjAWXqCwYqlMYzVNQuoSeNA/exec'; 
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxwLkxUbGMis4CfXPMZgRKAwR3KpEl8gufPyQXXNO4yD8dVEhjoh5puN-q93zPXY6D7vQ/exec'; 
         
         const params = new URLSearchParams(window.location.search);
         const view = params.get('view') || 'kiosk';
         
-        let config = {}; let playlistIndex = 0; let playlistTimer = null; 
+        let config = {}; window.currentConfigVersion = "0";
+        let playlistIndex = 0; let playlistTimer = null; 
         let recentCalls = []; let offlineQueue = JSON.parse(localStorage.getItem('offlineQueue') || '[]'); 
-        
         let rawReportData = []; let filteredData = []; let dChartInstance = null; let bChartInstance = null; let voices = [];
         let hardwareSettings = JSON.parse(localStorage.getItem('hardwareSettings') || '{"camera":"", "printer":""}');
+        
         let lastCallTimestamp = 0; 
-
-        // VARIABEL GLOBAL PENTING (MENYELESAIKAN ERROR REFERENCE)
-        let lastCalled = ""; 
-        let lastPhoto = ""; 
-        let lastService = "";
+        let lastCalled = ""; let lastPhoto = ""; let lastService = "";
 
         window.addEventListener('online', () => { document.body.classList.remove('offline'); syncOfflineData(); });
         window.addEventListener('offline', () => { document.body.classList.add('offline'); Swal.fire('Koneksi Terputus', 'Beralih ke Offline Mode.', 'warning'); });
         const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
 
+        // PROTOKOL JARINGAN ANTI CORS & CACHE BUSTER
         async function fetchAPI(action) {
             const cb = new Date().getTime();
             const res = await fetch(`${API_URL}?action=${action}&_t=${cb}`);
@@ -90,13 +88,20 @@
             return res.json();
         }
         async function fetchPost(payload) {
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify(payload)
-            });
+            const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
             if(!res.ok) throw new Error('HTTP Error');
             return res.json();
+        }
+
+        // AUTO-SYNC UI JIKA ADA PERUBAHAN DARI ADMIN
+        async function checkConfigUpdate(serverVersion) {
+            if (window.currentConfigVersion && serverVersion && window.currentConfigVersion !== serverVersion && serverVersion !== "0") {
+                config = await fetchAPI('getConfig');
+                localStorage.setItem('cachedConfig', JSON.stringify(config));
+                window.currentConfigVersion = serverVersion;
+                updateBrand(); renderView(); 
+                Toast.fire({ icon: 'info', title: 'Tampilan diupdate otomatis.' });
+            }
         }
 
         function loadVoices() { voices = speechSynthesis.getVoices(); if(view === 'admin') populateVoiceSelect(); }
@@ -134,13 +139,17 @@
         function updateClock() { const el = document.getElementById('clock'); if(el) el.innerText = new Date().toLocaleTimeString('id-ID'); }
         function updateBrand() {
             document.documentElement.style.setProperty('--p-color', config.primaryColor); document.documentElement.style.setProperty('--s-color', config.secondaryColor); document.documentElement.style.setProperty('--printer-width', config.printerSize);
-            document.getElementById('nav-bank-name').innerText = config.bankName; document.getElementById('nav-logo').src = config.bankLogo;
+            const imgL = document.getElementById('nav-logo'); if(config.bankLogo) imgL.src = config.bankLogo; else imgL.classList.add('hidden');
+            document.getElementById('nav-bank-name').innerText = config.bankName; 
             const badge = document.getElementById('role-badge'); if(view !== 'display' && view !== 'kiosk') { badge.classList.remove('hidden'); badge.innerText = view === 'staff' ? params.get('name').toUpperCase() : view.toUpperCase(); }
         }
 
         function renderView() {
             const el = document.getElementById('app-container');
-            if(view === 'kiosk') renderKiosk(el); else if(view === 'display') renderDisplay(el); else if(view === 'staff') renderStaff(el); else if(view === 'admin') renderAdmin(el);
+            if(view === 'kiosk') { renderKiosk(el); setInterval(pollKiosk, 5000); }
+            else if(view === 'display') { renderDisplay(el); }
+            else if(view === 'staff') { renderStaff(el); }
+            else if(view === 'admin') renderAdmin(el);
         }
 
         // ==========================================
@@ -173,7 +182,7 @@
 
                     <div class="z-10 flex flex-col h-full w-full p-12">
                         <div class="flex justify-between items-start mb-6 border-b ${config.kioskTheme==='minimalist'?'border-slate-200':'border-white/20'} pb-8">
-                            <img src="${config.bankLogo}" class="h-20 ${config.kioskTheme==='minimalist'?'':'brightness-0 invert filter drop-shadow-md'}">
+                            <img src="${config.bankLogo || ''}" class="h-20 ${config.kioskTheme==='minimalist'?'':'brightness-0 invert filter drop-shadow-md'}">
                             <div class="text-right ${titleColor} max-w-2xl">
                                 <h1 class="text-5xl font-black uppercase tracking-widest mb-2 drop-shadow-sm">${config.kioskWelcomeTitle}</h1>
                                 <p class="text-xl opacity-80 font-medium">${config.kioskWelcomeDesc}</p>
@@ -203,15 +212,24 @@
         }
 
         async function startSystem() {
-            const popupLeft = (window.screenLeft !== undefined ? window.screenLeft : window.screenX) + (window.innerWidth || screen.width); 
-            window.open(window.location.pathname + '?view=display', 'BankingHall', `width=1920,height=1080,left=${popupLeft},top=0`);
+            // DETEKSI LAYAR GANDA UNTUK TV
+            let popupLeft = window.screen.width; let popupTop = 0; let popupWidth = 1920; let popupHeight = 1080;
+            if ('getScreenDetails' in window) {
+                try {
+                    const screenDetails = await window.getScreenDetails();
+                    const externalScreen = screenDetails.screens.find(s => s !== screenDetails.currentScreen);
+                    if (externalScreen) { popupLeft = externalScreen.left; popupTop = externalScreen.top; popupWidth = externalScreen.width; popupHeight = externalScreen.height; }
+                } catch(e) { console.log('Screen API denied'); }
+            }
+            window.open(window.location.pathname + '?view=display', 'BankingHall', `left=${popupLeft},top=${popupTop},width=${popupWidth},height=${popupHeight}`);
+            
             const pScreen = document.getElementById('power-screen'); pScreen.style.opacity = '0'; setTimeout(() => pScreen.classList.add('hidden'), 500);
             
             try { 
                 const constraints = hardwareSettings.camera ? { video: { deviceId: { exact: hardwareSettings.camera } } } : { video: true };
                 const stream = await navigator.mediaDevices.getUserMedia(constraints); 
                 document.getElementById('hidden-cam').srcObject = stream; 
-            } catch(e) { console.log(e); Swal.fire('Informasi', 'Kamera tidak terdeteksi. Fitur foto dinonaktifkan.', 'info'); }
+            } catch(e) { Swal.fire('Informasi', 'Kamera tidak terdeteksi. Fitur foto dinonaktifkan.', 'info'); }
         }
 
         async function takeTicket(type, btnObj) {
@@ -258,6 +276,8 @@
             pArea.classList.remove('hidden'); window.print(); pArea.classList.add('hidden');
         }
 
+        async function pollKiosk() { if(navigator.onLine) { try { const state = await fetchAPI('getState'); checkConfigUpdate(state.configUpdated); } catch(e){} } }
+
         async function syncOfflineData() {
             if(offlineQueue.length === 0) return;
             try { 
@@ -267,7 +287,7 @@
         }
 
         // ==========================================
-        // 2. DISPLAY BANKING HALL
+        // 2. DISPLAY BANKING HALL 
         // ==========================================
         function renderDisplay(el) {
             document.getElementById('top-nav').style.display = 'none';
@@ -294,12 +314,13 @@
                 </div>
             `;
 
-            const logoFloatHTML = `<div class="absolute top-8 left-8 z-50 flex items-center gap-4 bg-white/10 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/20 shadow-xl"><img src="${config.bankLogo}" class="h-10 brightness-0 invert"></div>`;
+            const logoFloatHTML = `<div class="absolute top-8 left-8 z-50 flex items-center gap-4 bg-white/10 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/20 shadow-xl"><img src="${config.bankLogo||''}" class="h-10 brightness-0 invert"></div>`;
 
             if(config.displayTheme === 'elegant-dark') {
                 el.innerHTML = `
                     <div id="display-start-screen" class="absolute inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center">
                         <button onclick="startDisplayMedia()" class="text-white text-3xl font-bold bg-primary px-10 py-5 rounded-full pulse-heartbeat shadow-[0_0_50px_rgba(0,74,153,0.8)]"><i class="fa-solid fa-play mr-4"></i> MULAI LAYAR BANKING HALL</button>
+                        <p class="text-slate-400 mt-4">Klik untuk mengizinkan pemutaran audio browser.</p>
                     </div>
                     <div class="flex-grow flex flex-col bg-slate-900 h-screen w-full relative">
                         <div class="absolute inset-0 z-0 opacity-40" id="media-player-container"></div>
@@ -326,7 +347,7 @@
                     <div class="flex-grow flex flex-col bg-slate-100 h-screen w-full">
                         <div class="flex-grow grid grid-cols-12 h-full">
                             <div class="col-span-4 bg-white border-r border-slate-200 shadow-lg z-10 flex flex-col p-6 overflow-auto">
-                                <img src="${config.bankLogo}" class="h-10 object-contain mb-8 mx-auto">
+                                <img src="${config.bankLogo||''}" class="h-10 object-contain mb-8 mx-auto">
                                 <h2 class="text-lg font-black text-slate-400 mb-6 uppercase tracking-[0.2em] border-b pb-2">Status Loket</h2>
                                 <div class="grid grid-cols-1 gap-4">${counterGridHTML}</div>
                                 ${config.rates.length > 0 ? `<div class="mt-auto pt-6 border-t"><h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3"><i class="fa-solid fa-chart-line text-primary mr-1"></i> Info Suku Bunga & Kurs</h3>${config.rates.map(r => `<div class="flex justify-between text-xs py-1"><span class="text-slate-500 font-bold">${r.name}</span><span class="text-primary font-black">${r.value}</span></div>`).join('')}</div>` : ''}
@@ -412,7 +433,8 @@
             if(!navigator.onLine) return; 
             try {
                 const state = await fetchAPI('getState');
-                
+                checkConfigUpdate(state.configUpdated); // Global Sync Checker
+
                 const nextTeller = state.teller.lastGenerated > state.teller.currentCalled ? `T-${state.teller.currentCalled + 1}` : '-';
                 const nextCS = state.cs.lastGenerated > state.cs.currentCalled ? `C-${state.cs.currentCalled + 1}` : '-';
                 const ntEl = document.getElementById('d-next-teller'); if(ntEl) ntEl.innerText = nextTeller;
@@ -442,15 +464,13 @@
                     setTimeout(() => { tktEl.classList.remove('pulse-heartbeat', 'text-secondary'); document.getElementById('d-avatar-container').classList.remove('pulse-heartbeat', 'border-secondary'); document.getElementById('d-counter-box').classList.remove('bg-secondary'); }, 2500);
                     
                     const imgEl = document.getElementById('d-img'); const iconEl = document.getElementById('d-icon');
-                    if(imgEl && now.photo) { imgEl.src = now.photo; imgEl.classList.remove('hidden'); iconEl.classList.add('hidden'); } else { imgEl.classList.add('hidden'); iconEl.classList.remove('hidden'); }
+                    if(imgEl && now.photo && now.photo.startsWith('data:')) { imgEl.src = now.photo; imgEl.classList.remove('hidden'); iconEl.classList.add('hidden'); } else { imgEl.classList.add('hidden'); iconEl.classList.remove('hidden'); }
                     
                     await playChime(); 
                     const msg = new SpeechSynthesisUtterance(`Nomor antrian, ${now.ticket.replace('-', ' ')}, silahkan menuju, ${now.counter}`); 
                     msg.lang = 'id-ID'; msg.pitch = config.voiceConfig.pitch; msg.rate = config.voiceConfig.rate; msg.volume = config.voiceVolume / 100;
                     if(config.voiceConfig.voiceURI && voices.length > 0) { const v = voices.find(v => v.voiceURI === config.voiceConfig.voiceURI); if(v) msg.voice = v; }
-                    speechSynthesis.speak(msg); 
-                    
-                    lastCallTimestamp = now.timestamp;
+                    speechSynthesis.speak(msg); lastCallTimestamp = now.timestamp;
                 }
             } catch(e){}
         }
@@ -484,7 +504,7 @@
                             <div class="grid grid-cols-3 gap-4">
                                 <button onclick="staffAction('recall', '${role}', '${counterName}', this)" class="btn-hover-fx py-4 ${cardInner} font-bold rounded-2xl hover:brightness-90 transition-colors border border-white/10"><i class="fa-solid fa-rotate-right"></i> Panggil Ulang</button>
                                 <button onclick="transferQueue('${counterName}')" class="btn-hover-fx py-4 bg-indigo-500 text-white font-bold rounded-2xl hover:bg-indigo-600 transition-colors shadow-md"><i class="fa-solid fa-share-nodes"></i> Transfer Tiket</button>
-                                <button onclick="markDone()" class="btn-hover-fx py-4 bg-emerald-500 text-white font-bold rounded-2xl shadow-[0_5px_15px_rgba(16,185,129,0.4)] hover:bg-emerald-600 transition-colors"><i class="fa-solid fa-check-double"></i> Selesai</button>
+                                <button onclick="markDone()" class="btn-hover-fx py-4 bg-emerald-500 text-white font-bold rounded-2xl shadow-[0_5px_15px_rgba(16,185,129,0.4)] hover:bg-emerald-600 transition-colors"><i class="fa-solid fa-check-double"></i> Layanan Selesai</button>
                             </div>
                         </div>
                     </div>
@@ -513,7 +533,8 @@
                 if(data.success) { 
                     lastCalled = data.ticket; lastPhoto = data.photo || ""; lastService = data.service || "Umum"; 
                     const tktEl = document.getElementById('s-ticket'); tktEl.innerText = data.ticket; tktEl.classList.add('scale-110'); setTimeout(() => tktEl.classList.remove('scale-110'), 300);
-                    document.getElementById('s-service').innerText = data.service; if(data.photo) document.getElementById('s-photo').innerHTML = `<img src="${data.photo}" class="w-full h-full object-cover">`; 
+                    document.getElementById('s-service').innerText = data.service; 
+                    if(data.photo && data.photo.startsWith('data:')) document.getElementById('s-photo').innerHTML = `<img src="${data.photo}" class="w-full h-full object-cover">`; else document.getElementById('s-photo').innerHTML = `<i class="fa-solid fa-user-astronaut text-[100px] opacity-30"></i>`; 
                     Toast.fire({ icon: 'success', title: `Antrian dipanggil.` }); pollStaffStatus(safeType, counterName); 
                 } else { Swal.fire('Info', data.msg, 'info'); } 
             } catch(e) { console.error(e); Toast.fire({ icon: 'error', title: 'Gagal koneksi ke server.' }); }
@@ -526,9 +547,11 @@
         
         async function pollStaffStatus(role, counterName) { 
             try { 
-                const state = await fetchAPI('getState'); const rData = state[role]; 
+                const state = await fetchAPI('getState'); 
+                checkConfigUpdate(state.configUpdated); // Global Sync
+                const rData = state[role] || {lastGenerated:0, currentCalled:0}; 
                 
-                if(!lastCalled && state.activeCounters[counterName] && state.activeCounters[counterName] !== "-") {
+                if(!lastCalled && state.activeCounters && state.activeCounters[counterName] && state.activeCounters[counterName] !== "-") {
                     lastCalled = state.activeCounters[counterName]; document.getElementById('s-ticket').innerText = lastCalled;
                 }
 
@@ -592,13 +615,13 @@
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">TEKS SAMBUTAN UTAMA</label><input id="f-ktitle" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-black text-xl outline-none" value="${config.kioskWelcomeTitle}"></div>
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">DESKRIPSI SAMBUTAN</label><input id="f-kdesc" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none" value="${config.kioskWelcomeDesc}"></div>
-                                <div><label class="block text-xs font-bold text-slate-500 mb-2">BACKGROUND IMAGE (Tema Minimalist/Vibrant)</label><div class="flex gap-2"><input id="f-kbg" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.kioskBgImage}"><input type="file" id="f-kbg-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-kbg')"><button onclick="document.getElementById('f-kbg-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-upload"></i></button></div></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">BACKGROUND IMAGE (Tema Minimalist/Vibrant)</label><div class="flex gap-2"><input id="f-kbg" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.kioskBgImage}"><input type="file" id="f-kbg-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-kbg')"><button onclick="document.getElementById('f-kbg-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-cloud-arrow-up"></i></button></div></div>
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">RUNNING TEXT KIOSK</label><textarea id="f-krtext" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" rows="2">${config.kioskRunningText}</textarea></div>
                             </div>
                         </div>
 
                         <div id="tab-display" class="tab-content max-w-4xl pt-16">
-                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Media Layar Banking Hall</h2>
+                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Desain Layar Banking Hall</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6 mb-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">PILIH TEMA LAYAR TV</label>
                                     <div class="grid grid-cols-3 gap-4">
@@ -610,7 +633,6 @@
                             </div>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">RUNNING TEXT BAWAH</label><textarea id="f-text" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" rows="2">${config.runningText}</textarea></div>
-                                
                                 <div class="border-t border-slate-200 pt-6">
                                     <div class="flex justify-between items-center mb-4"><h3 class="font-black text-slate-700 uppercase tracking-widest text-sm"><i class="fa-solid fa-photo-film text-primary mr-2"></i> Playlist Media TV (Maks 10)</h3><button onclick="addPlaylistRow()" class="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-bold text-xs hover:bg-blue-100"><i class="fa-solid fa-plus mr-1"></i> Tambah Media</button></div>
                                     <div id="playlist-container" class="flex flex-col gap-3"></div>
@@ -620,7 +642,6 @@
 
                         <div id="tab-printer" class="tab-content max-w-6xl pt-16">
                             <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Hardware: Printer, Kamera & Audio</h2>
-                            
                             <div class="grid grid-cols-3 gap-6 mb-8">
                                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
                                     <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-camera text-primary mr-2"></i> Kamera Kiosk PC</h3>
@@ -726,27 +747,10 @@
             loadAdminReports();
         }
 
-        function renderAdminLock(el) { 
-            document.getElementById('top-nav').style.display = 'none'; 
-            el.innerHTML = `
-                <div class="h-full flex items-center justify-center bg-slate-900 relative">
-                    <div class="orb bg-primary" style="width: 400px; height: 400px; top: 10%; left: 20%;"></div>
-                    <div class="bg-white/10 backdrop-blur-xl p-10 rounded-[3rem] shadow-2xl text-center max-w-sm w-full border border-white/20 z-10">
-                        <i class="fa-solid fa-shield-halved text-6xl text-white mb-6"></i>
-                        <h2 class="text-2xl font-black text-white mb-2">Otorisasi Admin</h2>
-                        <p class="text-sm text-white/70 font-medium mb-8">Masukkan PIN (Default: 123456)</p>
-                        <input type="password" id="admin-pin" class="w-full text-center text-3xl font-black tracking-[0.5em] p-4 bg-white/20 text-white border-2 border-white/30 rounded-2xl mb-6 outline-none focus:border-white transition-colors placeholder-white/30" placeholder="••••••" maxlength="6">
-                        <button onclick="checkPin()" class="btn-hover-fx w-full bg-white text-slate-900 py-4 rounded-xl font-black shadow-lg">BUKA DASHBOARD</button>
-                    </div>
-                </div>
-            `; 
-        }
-
-        function checkPin() { 
-            if(document.getElementById('admin-pin').value === '123456') { 
-                sessionStorage.setItem('adminUnlocked', 'true'); document.getElementById('top-nav').style.display = 'flex'; renderAdmin(document.getElementById('app-container')); 
-            } else { Swal.fire({icon: 'error', title: 'Ditolak', text: 'PIN Salah'}); document.getElementById('admin-pin').value = ''; } 
-        }
+        // ==========================================
+        // ADMIN LOGIC MODULES
+        // ==========================================
+        function checkPin() { if(document.getElementById('admin-pin').value === '123456') { sessionStorage.setItem('adminUnlocked', 'true'); document.getElementById('top-nav').style.display = 'flex'; renderAdmin(document.getElementById('app-container')); } else { Swal.fire({icon: 'error', title: 'Ditolak', text: 'PIN Salah'}); document.getElementById('admin-pin').value = ''; } }
         function lockAdmin() { sessionStorage.removeItem('adminUnlocked'); renderAdminLock(document.getElementById('app-container')); }
         function switchTab(tabId, btn) { document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active')); document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active')); document.getElementById(tabId).classList.add('active'); btn.classList.add('active'); }
         function selectTheme(category, themeName) { document.getElementById(`f-${category.charAt(0)}theme`).value = themeName; document.querySelectorAll(`.theme-card-${category}`).forEach(el => el.classList.remove('border-primary', 'bg-blue-50', 'ring-4', 'ring-primary/20')); const selectedCard = document.getElementById(`theme-${category}-${themeName}`); if(selectedCard) selectedCard.classList.add('border-primary', 'bg-blue-50', 'ring-4', 'ring-primary/20'); }
@@ -813,7 +817,7 @@
             filteredData.slice().reverse().forEach(row => {
                 let staffName = row[3] || 'Belum Dipanggil'; if(row[4] === 'TRANSFERRED') staffName = 'Ditransfer'; staffStats[staffName] = (staffStats[staffName] || 0) + 1;
                 if(row[2] === 'teller') typeCount.teller++; else typeCount.cs++; if(row[0]) { const hour = new Date(row[0]).getHours(); hourlyData[hour] = (hourlyData[hour] || 0) + 1; }
-                const printDateStr = row[0] ? new Date(row[0]).toLocaleString('id-ID') : '-'; const callDateStr = row[7] ? new Date(row[7]).toLocaleTimeString('id-ID') : '<span class="text-slate-300 italic">Menunggu...</span>'; const photoHtml = row[5] ? `<img src="${row[5]}" class="w-10 h-10 object-cover rounded-full border border-slate-200 mx-auto transition-transform hover:scale-150">` : '-';
+                const printDateStr = row[0] ? new Date(row[0]).toLocaleString('id-ID') : '-'; const callDateStr = row[7] ? new Date(row[7]).toLocaleTimeString('id-ID') : '<span class="text-slate-300 italic">Menunggu...</span>'; const photoHtml = row[5] && row[5].startsWith('data:') ? `<img src="${row[5]}" class="w-10 h-10 object-cover rounded-full border border-slate-200 mx-auto transition-transform hover:scale-150">` : '-';
                 const tr = document.createElement('tr'); tr.className = "hover:bg-slate-50 transition-colors"; tr.innerHTML = `<td class="p-4 font-medium text-slate-600">${printDateStr}</td><td class="p-4 font-bold text-slate-800">${callDateStr}</td><td class="p-4"><span class="bg-${row[2]==='teller'?'blue':'orange'}-100 text-${row[2]==='teller'?'primary':'secondary'} px-3 py-1 rounded-lg font-black shadow-sm">${row[1]}</span><div class="text-[10px] mt-1 font-bold text-slate-400 uppercase tracking-widest">${row[3] || ''}</div></td><td class="p-4 font-medium text-slate-600">${row[6]}</td><td class="p-4 text-center">${photoHtml}</td>`; tbody.appendChild(tr);
             });
             let statsHtml = `<div class="bg-primary p-4 rounded-2xl shadow-md text-white transition-transform hover:-translate-y-1"><div class="text-[10px] font-bold opacity-80 uppercase tracking-widest">Total Cetak Resi</div><div class="text-4xl font-black mt-1">${total}</div></div>`;
@@ -841,8 +845,8 @@
                 voiceConfig: { voiceURI: document.getElementById('f-voice')?.value || "", pitch: document.getElementById('f-pitch')?.value || 1, rate: document.getElementById('f-rate')?.value || 0.85 }
             }; 
             try { 
-                const res = await fetchPost({ action: 'updateConfig', config: newConfig }); 
-                if(res.success) { Swal.fire('Berhasil!', 'Sistem diperbarui.', 'success').then(() => location.reload()); } 
+                const data = await fetchPost({ action: 'updateConfig', config: newConfig }); 
+                if(data.success) { Swal.fire('Berhasil!', 'Sistem diperbarui.', 'success'); } 
             } catch(e) { Swal.fire('Error', 'Gagal menyimpan.', 'error'); } 
         }
         
