@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Antrian Ultimate v16</title>
+    <title>Sistem Antrian Ultimate v17</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -60,9 +60,9 @@
 
     <script>
         // ==========================================
-        // URL DEPLOYMENT BARU GOOGLE APPS SCRIPT
+        // MASUKKAN URL GOOGLE APPS SCRIPT ANDA DI SINI
         // ==========================================
-        const API_URL = 'https://script.google.com/macros/s/AKfycbzvJSGLivQX1ndpM9eKPy7Q3QTQydK0DHO6WneAgYqy86hHJJ1s-rT67pDX6-yyY5WE1g/exec'; 
+        const API_URL = 'https://script.google.com/macros/s/AKfycby1asUVac3lL-nLExNkVx9qc2IvbOV27quRLYNVjgMzXiWYjnXeijlX5xGsqCv0l4prwQ/exec'; 
         
         const params = new URLSearchParams(window.location.search);
         const view = params.get('view') || 'kiosk';
@@ -77,6 +77,23 @@
         window.addEventListener('offline', () => { document.body.classList.add('offline'); Swal.fire('Koneksi Terputus', 'Beralih ke Offline Mode.', 'warning'); });
         const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
 
+        // PROTOKOL JARINGAN ANTI CORS (CORS-Safe Fetch Helpers)
+        async function fetchAPI(action) {
+            const cb = new Date().getTime();
+            const res = await fetch(`${API_URL}?action=${action}&_t=${cb}`);
+            if(!res.ok) throw new Error('HTTP Error');
+            return res.json();
+        }
+        async function fetchPost(payload) {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Menghindari bloking browser modern
+                body: JSON.stringify(payload)
+            });
+            if(!res.ok) throw new Error('HTTP Error');
+            return res.json();
+        }
+
         function loadVoices() { voices = speechSynthesis.getVoices(); if(view === 'admin') populateVoiceSelect(); }
         speechSynthesis.onvoiceschanged = loadVoices;
 
@@ -88,26 +105,18 @@
             });
         }
 
-        // PENTING: Cache Buster &_t=${Date.now()} di-inject agar browser tidak meng-cache respons dari server
-        async function fetchAPI(action) {
-            const cb = new Date().getTime();
-            return fetch(`${API_URL}?action=${action}&_t=${cb}`);
-        }
-
         async function init() {
             loadVoices();
             if(!navigator.onLine) document.body.classList.add('offline');
             document.getElementById('app-container').innerHTML = `<div class="flex h-full items-center justify-center"><i class="fa-solid fa-spinner fa-spin-pulse text-6xl text-primary"></i></div>`;
             try { 
-                const res = await fetchAPI('getConfig'); 
-                config = await res.json(); 
+                config = await fetchAPI('getConfig'); 
                 localStorage.setItem('cachedConfig', JSON.stringify(config)); 
             } catch (e) { 
                 config = JSON.parse(localStorage.getItem('cachedConfig') || '{}'); 
-                if(!config.bankName) return Swal.fire({ icon: 'error', title: 'Fatal', text: 'Tidak ada cache offline.' }); 
+                if(!config.bankName) return Swal.fire({ icon: 'error', title: 'Fatal', text: 'Tidak ada cache offline. Butuh internet pertama kali.' }); 
             }
             
-            // Set Default Config Fallbacks
             if(!config.playlist) config.playlist = [{type: config.mediaType || 'youtube', url: config.mediaSource || 'aqz-KE-bpKQ', duration: 30}];
             if(typeof config.counters[0] === 'string') config.counters = config.counters.map(c => ({name: c, role: c.toLowerCase().includes('cs') ? 'cs' : 'teller'}));
             if(!config.videoVolume) config.videoVolume = 50; if(!config.voiceVolume) config.voiceVolume = 100;
@@ -175,8 +184,8 @@
                                 </div>
                             </div>
                             <div class="grid grid-cols-2 gap-10 w-full max-w-5xl mt-6 z-10">
-                                <button onclick="takeTicket('teller')" class="btn-hover-fx bg-gradient-to-br from-blue-500 to-blue-800 p-12 rounded-[3rem] text-white flex flex-col items-center justify-center shadow-[0_20px_50px_rgba(0,74,153,0.5)] border border-white/20"><i class="fa-solid fa-vault text-[90px] mb-6 drop-shadow-lg"></i><div class="text-4xl font-black">TELLER</div></button>
-                                <button onclick="takeTicket('cs')" class="btn-hover-fx bg-gradient-to-br from-secondary to-orange-500 p-12 rounded-[3rem] text-white flex flex-col items-center justify-center shadow-[0_20px_50px_rgba(243,112,33,0.5)] border border-white/20"><i class="fa-solid fa-user-tie text-[90px] mb-6 drop-shadow-lg"></i><div class="text-4xl font-black">CUSTOMER SERVICE</div></button>
+                                <button onclick="takeTicket('teller', this)" class="btn-hover-fx bg-gradient-to-br from-blue-500 to-blue-800 p-12 rounded-[3rem] text-white flex flex-col items-center justify-center shadow-[0_20px_50px_rgba(0,74,153,0.5)] border border-white/20"><i class="fa-solid fa-vault text-[90px] mb-6 drop-shadow-lg"></i><div class="text-4xl font-black">TELLER</div></button>
+                                <button onclick="takeTicket('cs', this)" class="btn-hover-fx bg-gradient-to-br from-secondary to-orange-500 p-12 rounded-[3rem] text-white flex flex-col items-center justify-center shadow-[0_20px_50px_rgba(243,112,33,0.5)] border border-white/20"><i class="fa-solid fa-user-tie text-[90px] mb-6 drop-shadow-lg"></i><div class="text-4xl font-black">CUSTOMER SERVICE</div></button>
                             </div>
                         </div>
                     </div>
@@ -200,7 +209,8 @@
             } catch(e) { console.log(e); Swal.fire('Informasi', 'Kamera tidak terdeteksi. Fitur foto dinonaktifkan.', 'info'); }
         }
 
-        async function takeTicket(type) {
+        async function takeTicket(type, btnObj) {
+            btnObj.disabled = true; // Cegah double klik
             Swal.fire({ title: 'Mencetak...', allowOutsideClick: false, showConfirmButton: false, background: 'rgba(255,255,255,0.9)', didOpen: () => { Swal.showLoading() } });
             const flash = document.getElementById('camera-flash'); flash.style.opacity = '1'; setTimeout(() => flash.style.opacity = '0', 100);
             
@@ -211,13 +221,14 @@
             if(!navigator.onLine) {
                 const ticketNo = (type === 'teller' ? 'T-O' : 'C-O') + Math.floor(Math.random()*1000);
                 offlineQueue.push({ type, photo, service, timestamp: new Date().getTime(), ticket: ticketNo }); localStorage.setItem('offlineQueue', JSON.stringify(offlineQueue));
-                printResi(ticketNo, service); return;
+                printResi(ticketNo, service); btnObj.disabled = false; return;
             }
 
             try {
-                const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'generate', type, photo, service }) });
-                const data = await res.json(); if(data.success) { config.receiptTheme = data.receiptTheme; printResi(data.ticket, service); }
+                const data = await fetchPost({ action: 'generate', type, photo, service });
+                if(data.success) { config.receiptTheme = data.receiptTheme; printResi(data.ticket, service); }
             } catch (e) { Swal.fire('Gagal', 'Koneksi ke server terputus.', 'error'); }
+            finally { btnObj.disabled = false; }
         }
 
         async function printResi(ticketNo, service) {
@@ -243,11 +254,14 @@
 
         async function syncOfflineData() {
             if(offlineQueue.length === 0) return;
-            try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'syncOfflineQueue', payload: offlineQueue }) }); const data = await res.json(); if(data.success) { offlineQueue = []; localStorage.setItem('offlineQueue', '[]'); Toast.fire({ icon: 'success', title: 'Sinkronisasi offline berhasil!' }); } } catch(e) {}
+            try { 
+                const data = await fetchPost({ action: 'syncOfflineQueue', payload: offlineQueue });
+                if(data.success) { offlineQueue = []; localStorage.setItem('offlineQueue', '[]'); Toast.fire({ icon: 'success', title: 'Sinkronisasi offline berhasil!' }); } 
+            } catch(e) {}
         }
 
         // ==========================================
-        // 2. DISPLAY BANKING HALL
+        // 2. DISPLAY BANKING HALL 
         // ==========================================
         function renderDisplay(el) {
             document.getElementById('top-nav').style.display = 'none';
@@ -280,6 +294,7 @@
                 el.innerHTML = `
                     <div id="display-start-screen" class="absolute inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center">
                         <button onclick="startDisplayMedia()" class="text-white text-3xl font-bold bg-primary px-10 py-5 rounded-full pulse-heartbeat shadow-[0_0_50px_rgba(0,74,153,0.8)]"><i class="fa-solid fa-play mr-4"></i> MULAI LAYAR BANKING HALL</button>
+                        <p class="text-slate-400 mt-4">Klik untuk mengizinkan pemutaran audio browser.</p>
                     </div>
                     <div class="flex-grow flex flex-col bg-slate-900 h-screen w-full relative">
                         <div class="absolute inset-0 z-0 opacity-40" id="media-player-container"></div>
@@ -391,8 +406,7 @@
         async function pollDisplay() {
             if(!navigator.onLine) return; 
             try {
-                // Gunakan cache-buster pada semua request GET
-                const res = await fetchAPI('getState'); const state = await res.json();
+                const state = await fetchAPI('getState');
                 
                 const nextTeller = state.teller.lastGenerated > state.teller.currentCalled ? `T-${state.teller.currentCalled + 1}` : '-';
                 const nextCS = state.cs.lastGenerated > state.cs.currentCalled ? `C-${state.cs.currentCalled + 1}` : '-';
@@ -408,7 +422,6 @@
                 }
                 
                 const now = state.lastCalled;
-                // LOGIC PEMANGGILAN RECALL BERDASARKAN TIMESTAMP TERBARU
                 if(now.timestamp && now.timestamp !== lastCallTimestamp && now.ticket !== "-") {
                     if(lastCallTimestamp !== 0) { 
                         recentCalls.unshift({ ticket: document.getElementById('d-ticket').innerText, counter: document.getElementById('d-counter').innerText }); 
@@ -430,9 +443,7 @@
                     const msg = new SpeechSynthesisUtterance(`Nomor antrian, ${now.ticket.replace('-', ' ')}, silahkan menuju, ${now.counter}`); 
                     msg.lang = 'id-ID'; msg.pitch = config.voiceConfig.pitch; msg.rate = config.voiceConfig.rate; msg.volume = config.voiceVolume / 100;
                     if(config.voiceConfig.voiceURI && voices.length > 0) { const v = voices.find(v => v.voiceURI === config.voiceConfig.voiceURI); if(v) msg.voice = v; }
-                    speechSynthesis.speak(msg); 
-                    
-                    lastCallTimestamp = now.timestamp;
+                    speechSynthesis.speak(msg); lastCallTimestamp = now.timestamp;
                 }
             } catch(e){}
         }
@@ -462,11 +473,11 @@
                             <div class="text-sm font-bold uppercase tracking-widest mb-2 opacity-60">Sedang Dilayani</div>
                             <div id="s-ticket" class="text-[100px] font-black leading-none mb-4 drop-shadow-sm transition-transform duration-300">-</div>
                             <div id="s-service" class="text-xl font-bold ${cardInner} px-6 py-2 rounded-xl inline-block w-max mb-6 border border-white/10">-</div>
-                            <button onclick="staffAction('call', '${role}', '${counterName}')" class="btn-hover-fx w-full py-6 bg-secondary text-white text-2xl font-black rounded-2xl shadow-[0_10px_20px_rgba(243,112,33,0.3)] mb-4 flex items-center justify-center gap-3"><i class="fa-solid fa-bullhorn"></i> PANGGIL BERIKUTNYA</button>
+                            <button onclick="staffAction('call', '${role}', '${counterName}', this)" class="btn-hover-fx w-full py-6 bg-secondary text-white text-2xl font-black rounded-2xl shadow-[0_10px_20px_rgba(243,112,33,0.3)] mb-4 flex items-center justify-center gap-3"><i class="fa-solid fa-bullhorn"></i> PANGGIL BERIKUTNYA</button>
                             <div class="grid grid-cols-3 gap-4">
-                                <button onclick="staffAction('recall', '${role}', '${counterName}')" class="btn-hover-fx py-4 ${cardInner} font-bold rounded-2xl hover:brightness-90 transition-colors border border-white/10"><i class="fa-solid fa-rotate-right"></i> Panggil Ulang</button>
+                                <button onclick="staffAction('recall', '${role}', '${counterName}', this)" class="btn-hover-fx py-4 ${cardInner} font-bold rounded-2xl hover:brightness-90 transition-colors border border-white/10"><i class="fa-solid fa-rotate-right"></i> Panggil Ulang</button>
                                 <button onclick="transferQueue('${counterName}')" class="btn-hover-fx py-4 bg-indigo-500 text-white font-bold rounded-2xl hover:bg-indigo-600 transition-colors shadow-md"><i class="fa-solid fa-share-nodes"></i> Transfer Tiket</button>
-                                <button onclick="markDone()" class="btn-hover-fx py-4 bg-emerald-500 text-white font-bold rounded-2xl shadow-[0_5px_15px_rgba(16,185,129,0.4)] hover:bg-emerald-600 transition-colors"><i class="fa-solid fa-check-double"></i> Layanan Selesai</button>
+                                <button onclick="markDone()" class="btn-hover-fx py-4 bg-emerald-500 text-white font-bold rounded-2xl shadow-[0_5px_15px_rgba(16,185,129,0.4)] hover:bg-emerald-600 transition-colors"><i class="fa-solid fa-check-double"></i> Selesai</button>
                             </div>
                         </div>
                     </div>
@@ -475,34 +486,45 @@
             setInterval(() => pollStaffStatus(role, counterName), 3000); 
         }
 
-        async function changeStaffStatus(counterName) { const status = document.getElementById('staff-status').value; try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'updateStatus', counterName, status }) }); Toast.fire({ icon: 'success', title: `Status Loket diubah.` }); } catch(e){} }
+        async function changeStaffStatus(counterName) { const status = document.getElementById('staff-status').value; try { await fetchPost({ action: 'updateStatus', counterName, status }); Toast.fire({ icon: 'success', title: `Status Loket diubah.` }); } catch(e){} }
         
         async function transferQueue(counterName) {
             if(!lastCalled || lastCalled === "-") return Toast.fire({ icon: 'warning', title: 'Belum ada tiket aktif.' });
             const target = await Swal.fire({ title: 'Transfer Antrian', text: `Pindahkan tiket ${lastCalled} ke loket mana?`, input: 'select', inputOptions: { 'teller': 'Antrian TELLER', 'cs': 'Antrian CUSTOMER SERVICE' }, showCancelButton: true, confirmButtonText: 'Transfer Sekarang' });
-            if(target.isConfirmed) { Swal.fire({ title: 'Memproses Transfer...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'transfer', targetType: target.value, photo: lastPhoto, service: lastService }) }); const data = await res.json(); if(data.success) { Swal.fire('Berhasil Transfer', `Tiket baru: ${data.newTicket}. Silahkan catat di resi.`, 'success'); markDone(); } } catch(e) { Swal.fire('Error', 'Gagal transfer antrian', 'error'); } }
+            if(target.isConfirmed) { Swal.fire({ title: 'Memproses Transfer...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); try { const data = await fetchPost({ action: 'transfer', targetType: target.value, photo: lastPhoto, service: lastService }); if(data.success) { Swal.fire('Berhasil Transfer', `Tiket baru: ${data.newTicket}. Silahkan catat di resi.`, 'success'); resetStaffUI(); } } catch(e) { Swal.fire('Error', 'Gagal transfer antrian', 'error'); } }
         }
         
-        async function staffAction(action, type, counterName) {
+        async function staffAction(action, type, counterName, btnElement) {
             if(action === 'recall' && (!lastCalled || lastCalled === "-")) return Toast.fire({ icon: 'info', title: 'Belum ada nasabah.' });
+            
+            let origHTML = "";
+            if (btnElement) { origHTML = btnElement.innerHTML; btnElement.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Memproses...`; btnElement.disabled = true; }
+
             try { 
-                const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action, type, counterName, lastTicket: lastCalled }) }); 
-                const data = await res.json(); 
+                const safeType = String(type).toLowerCase();
+                const data = await fetchPost({ action, type: safeType, counterName, lastTicket: lastCalled }); 
                 if(data.success) { 
                     lastCalled = data.ticket; lastPhoto = data.photo || ""; lastService = data.service || "Umum"; 
                     const tktEl = document.getElementById('s-ticket'); tktEl.innerText = data.ticket; tktEl.classList.add('scale-110'); setTimeout(() => tktEl.classList.remove('scale-110'), 300);
                     document.getElementById('s-service').innerText = data.service; if(data.photo) document.getElementById('s-photo').innerHTML = `<img src="${data.photo}" class="w-full h-full object-cover">`; 
-                    Toast.fire({ icon: 'success', title: `Antrian dipanggil.` }); pollStaffStatus(type, counterName); 
+                    Toast.fire({ icon: 'success', title: `Antrian dipanggil.` }); pollStaffStatus(safeType, counterName); 
                 } else { Swal.fire('Info', data.msg, 'info'); } 
-            } catch(e) { Toast.fire({ icon: 'error', title: 'Gagal koneksi.' }); }
+            } catch(e) { console.error(e); Toast.fire({ icon: 'error', title: 'Gagal koneksi ke server.' }); }
+            finally { if (btnElement) { btnElement.innerHTML = origHTML; btnElement.disabled = false; } }
         }
+
+        function markDone() { if(!lastCalled || lastCalled === "-") return; confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: [config.primaryColor, config.secondaryColor, '#10B981'] }); resetStaffUI(); Toast.fire({ icon: 'success', title: 'Transaksi Selesai direkam.' }); }
         
-        function markDone() { if(!lastCalled || lastCalled === "-") return; confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: [config.primaryColor, config.secondaryColor, '#10B981'] }); document.getElementById('s-ticket').innerText = "-"; document.getElementById('s-service').innerText = "-"; document.getElementById('s-photo').innerHTML = `<i class="fa-solid fa-user-astronaut text-[100px] opacity-30"></i>`; lastCalled = ""; lastPhoto = ""; lastService = ""; Toast.fire({ icon: 'success', title: 'Transaksi Selesai direkam.' }); }
+        function resetStaffUI() { document.getElementById('s-ticket').innerText = "-"; document.getElementById('s-service').innerText = "-"; document.getElementById('s-photo').innerHTML = `<i class="fa-solid fa-user-astronaut text-[100px] opacity-30"></i>`; lastCalled = ""; lastPhoto = ""; lastService = ""; }
         
         async function pollStaffStatus(role, counterName) { 
             try { 
-                const res = await fetchAPI('getState'); const state = await res.json(); const rData = state[role]; 
-                if(!lastCalled && state.activeCounters[counterName] && state.activeCounters[counterName] !== "-") { lastCalled = state.activeCounters[counterName]; document.getElementById('s-ticket').innerText = lastCalled; }
+                const state = await fetchAPI('getState'); const rData = state[role]; 
+                
+                if(!lastCalled && state.activeCounters[counterName] && state.activeCounters[counterName] !== "-") {
+                    lastCalled = state.activeCounters[counterName]; document.getElementById('s-ticket').innerText = lastCalled;
+                }
+
                 document.getElementById('st-prev').innerText = rData.currentCalled > 1 ? (role==='teller'?'T-':'C-') + (rData.currentCalled - 1) : '-'; const sisa = rData.lastGenerated - rData.currentCalled; const nextEl = document.getElementById('st-next'); nextEl.innerText = sisa > 0 ? `${sisa} Orang` : 'KOSONG'; if(sisa > 5) nextEl.classList.add('text-red-500', 'pulse-heartbeat'); else nextEl.classList.remove('text-red-500', 'pulse-heartbeat'); 
             } catch(e){} 
         }
@@ -538,7 +560,7 @@
                             <div class="grid grid-cols-2 gap-8">
                                 <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6 h-max">
                                     <div><label class="block text-xs font-bold text-slate-500 mb-2">NAMA BANK</label><input id="f-bname" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" value="${config.bankName}"></div>
-                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">LOGO BANK</label><div class="flex gap-2"><input id="f-logo" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.bankLogo}"><input type="file" id="f-logo-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-logo')"><button onclick="document.getElementById('f-logo-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-upload"></i></button></div></div>
+                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">LOGO BANK (Upload / URL)</label><div class="flex gap-2"><input id="f-logo" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.bankLogo}"><input type="file" id="f-logo-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-logo')"><button onclick="document.getElementById('f-logo-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-upload"></i></button></div></div>
                                     <div class="grid grid-cols-2 gap-6"><div><label class="block text-xs font-bold text-slate-500 mb-2">WARNA PRIMARY</label><input type="color" id="f-c1" class="w-full h-12 rounded cursor-pointer border-none shadow-sm" value="${config.primaryColor}"></div><div><label class="block text-xs font-bold text-slate-500 mb-2">WARNA SECONDARY</label><input type="color" id="f-c2" class="w-full h-12 rounded cursor-pointer border-none shadow-sm" value="${config.secondaryColor}"></div></div>
                                 </div>
                                 <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col h-max">
@@ -550,7 +572,7 @@
                         </div>
                         
                         <div id="tab-kiosk" class="tab-content max-w-4xl pt-16">
-                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Desain Layar Kiosk Nasabah</h2>
+                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Desain Layar Kiosk</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6 mb-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">PILIH TEMA KIOSK</label>
                                     <div class="grid grid-cols-3 gap-4">
@@ -563,7 +585,7 @@
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">TEKS SAMBUTAN UTAMA</label><input id="f-ktitle" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-black text-xl outline-none" value="${config.kioskWelcomeTitle}"></div>
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">DESKRIPSI SAMBUTAN</label><input id="f-kdesc" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none" value="${config.kioskWelcomeDesc}"></div>
-                                <div><label class="block text-xs font-bold text-slate-500 mb-2">BACKGROUND IMAGE (Khusus Tema Minimalist & Vibrant)</label><div class="flex gap-2"><input id="f-kbg" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.kioskBgImage}"><input type="file" id="f-kbg-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-kbg')"><button onclick="document.getElementById('f-kbg-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-upload"></i></button></div></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">BACKGROUND IMAGE (Tema Minimalist/Vibrant)</label><div class="flex gap-2"><input id="f-kbg" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.kioskBgImage}"><input type="file" id="f-kbg-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-kbg')"><button onclick="document.getElementById('f-kbg-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-upload"></i></button></div></div>
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">RUNNING TEXT KIOSK</label><textarea id="f-krtext" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" rows="2">${config.kioskRunningText}</textarea></div>
                             </div>
                         </div>
@@ -581,6 +603,7 @@
                             </div>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">RUNNING TEXT BAWAH</label><textarea id="f-text" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" rows="2">${config.runningText}</textarea></div>
+                                
                                 <div class="border-t border-slate-200 pt-6">
                                     <div class="flex justify-between items-center mb-4"><h3 class="font-black text-slate-700 uppercase tracking-widest text-sm"><i class="fa-solid fa-photo-film text-primary mr-2"></i> Playlist Media TV (Maks 10)</h3><button onclick="addPlaylistRow()" class="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-bold text-xs hover:bg-blue-100"><i class="fa-solid fa-plus mr-1"></i> Tambah Media</button></div>
                                     <div id="playlist-container" class="flex flex-col gap-3"></div>
@@ -590,21 +613,22 @@
 
                         <div id="tab-printer" class="tab-content max-w-6xl pt-16">
                             <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Hardware: Printer, Kamera & Audio</h2>
+                            
                             <div class="grid grid-cols-3 gap-6 mb-8">
                                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
                                     <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-camera text-primary mr-2"></i> Kamera Kiosk PC</h3>
-                                    <select id="f-camera" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none text-sm mb-4"><option value="">-- Pilih Kamera --</option></select>
+                                    <select id="f-camera" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none text-sm mb-4"><option value="">-- Pilih Kamera Kiosk --</option></select>
                                     <button onclick="scanCameras()" class="bg-slate-800 text-white px-4 py-3 rounded-xl font-bold text-xs w-full hover:bg-black mt-auto"><i class="fa-solid fa-rotate mr-2"></i> Deteksi Ulang</button>
                                 </div>
                                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
                                     <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-usb text-primary mr-2"></i> Scanner Printer USB</h3>
                                     <div id="usb-status" class="bg-slate-50 p-4 rounded-xl border border-slate-200 h-16 overflow-hidden text-xs font-bold text-slate-600 mb-4 flex items-center justify-center">Belum ada perangkat terpilih</div>
-                                    <button onclick="scanUSB()" class="bg-blue-100 text-blue-700 px-4 py-3 rounded-xl font-bold text-xs w-full hover:bg-blue-200 mt-auto"><i class="fa-solid fa-magnifying-glass mr-2"></i> Scan Printer WebUSB</button>
+                                    <button onclick="scanUSB()" class="bg-blue-100 text-blue-700 px-4 py-3 rounded-xl font-bold text-xs w-full hover:bg-blue-200 mt-auto"><i class="fa-solid fa-magnifying-glass mr-2"></i> Pilih USB Printer Baru</button>
                                 </div>
                                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
                                     <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-volume-high text-primary mr-2"></i> Audio TV & Pemanggil</h3>
                                     <select id="f-voice" class="w-full p-2 bg-slate-50 border rounded-xl font-bold mb-3 outline-none text-xs truncate"></select>
-                                    <div class="grid grid-cols-2 gap-2 mb-3"><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Nada Suara</label><input type="range" id="f-pitch" min="0" max="2" step="0.1" value="${config.voiceConfig.pitch}" class="w-full"></div><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Cepat Suara</label><input type="range" id="f-rate" min="0.5" max="2" step="0.1" value="${config.voiceConfig.rate}" class="w-full"></div></div>
+                                    <div class="grid grid-cols-2 gap-2 mb-3"><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Nada (Pitch)</label><input type="range" id="f-pitch" min="0" max="2" step="0.1" value="${config.voiceConfig.pitch}" class="w-full"></div><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Cepat (Rate)</label><input type="range" id="f-rate" min="0.5" max="2" step="0.1" value="${config.voiceConfig.rate}" class="w-full"></div></div>
                                     <div class="grid grid-cols-2 gap-2 mt-auto"><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Vol Video %</label><input type="number" id="f-vvol" min="0" max="100" value="${config.videoVolume}" class="w-full p-2 border rounded text-xs text-center font-bold"></div><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Vol Suara %</label><input type="number" id="f-svol" min="0" max="100" value="${config.voiceVolume}" class="w-full p-2 border rounded text-xs text-center font-bold"></div></div>
                                     <button onclick="testVoice()" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-bold text-xs border hover:bg-slate-200 mt-2"><i class="fa-solid fa-play mr-2"></i> Test Panggil</button>
                                 </div>
@@ -615,7 +639,7 @@
                                     <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-receipt text-primary mr-2"></i> Layout Cetakan Kertas</h3>
                                     <div class="grid grid-cols-4 gap-6 mb-6">
                                         <div class="col-span-1"><label class="block text-xs font-bold text-slate-500 mb-2">UKURAN KERTAS</label><select id="f-psize" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"><option value="58mm" ${config.printerSize==='58mm'?'selected':''}>58mm</option><option value="80mm" ${config.printerSize==='80mm'?'selected':''}>80mm</option></select></div>
-                                        <div class="col-span-3"><label class="block text-xs font-bold text-slate-500 mb-2">PILIH TEMA RESI (Klik untuk preview)</label>
+                                        <div class="col-span-3"><label class="block text-xs font-bold text-slate-500 mb-2">PILIH TEMA RESI (Klik preview)</label>
                                             <div class="grid grid-cols-3 gap-4">
                                                 <div onclick="selectThemeReceipt('minimalist')" id="theme-receipt-minimalist" class="theme-card-receipt border-2 p-3 rounded-xl cursor-pointer text-center ${config.receiptTheme==='minimalist'?'border-primary bg-blue-50':'border-slate-200'}"><div class="font-bold text-sm">Minimalist</div></div>
                                                 <div onclick="selectThemeReceipt('standard')" id="theme-receipt-standard" class="theme-card-receipt border-2 p-3 rounded-xl cursor-pointer text-center ${config.receiptTheme==='standard'?'border-primary bg-blue-50':'border-slate-200'}"><div class="font-bold text-sm">Standard</div></div>
@@ -695,14 +719,37 @@
             loadAdminReports();
         }
 
-        // ==========================================
-        // ADMIN LOGIC MODULES
-        // ==========================================
-        function checkPin() { if(document.getElementById('admin-pin').value === '123456') { sessionStorage.setItem('adminUnlocked', 'true'); document.getElementById('top-nav').style.display = 'flex'; renderAdmin(document.getElementById('app-container')); } else { Swal.fire({icon: 'error', title: 'Ditolak', text: 'PIN Salah'}); document.getElementById('admin-pin').value = ''; } }
+        function renderAdminLock(el) { 
+            document.getElementById('top-nav').style.display = 'none'; 
+            el.innerHTML = `
+                <div class="h-full flex items-center justify-center bg-slate-900 relative">
+                    <div class="orb bg-primary" style="width: 400px; height: 400px; top: 10%; left: 20%;"></div>
+                    <div class="bg-white/10 backdrop-blur-xl p-10 rounded-[3rem] shadow-2xl text-center max-w-sm w-full border border-white/20 z-10">
+                        <i class="fa-solid fa-shield-halved text-6xl text-white mb-6"></i>
+                        <h2 class="text-2xl font-black text-white mb-2">Otorisasi Admin</h2>
+                        <p class="text-sm text-white/70 font-medium mb-8">Masukkan PIN (Default: 123456)</p>
+                        <input type="password" id="admin-pin" class="w-full text-center text-3xl font-black tracking-[0.5em] p-4 bg-white/20 text-white border-2 border-white/30 rounded-2xl mb-6 outline-none focus:border-white transition-colors placeholder-white/30" placeholder="••••••" maxlength="6">
+                        <button onclick="checkPin()" class="btn-hover-fx w-full bg-white text-slate-900 py-4 rounded-xl font-black shadow-lg">BUKA DASHBOARD</button>
+                    </div>
+                </div>
+            `; 
+        }
+
+        function checkPin() { 
+            if(document.getElementById('admin-pin').value === '123456') { 
+                sessionStorage.setItem('adminUnlocked', 'true'); document.getElementById('top-nav').style.display = 'flex'; renderAdmin(document.getElementById('app-container')); 
+            } else { Swal.fire({icon: 'error', title: 'Ditolak', text: 'PIN Salah'}); document.getElementById('admin-pin').value = ''; } 
+        }
         function lockAdmin() { sessionStorage.removeItem('adminUnlocked'); renderAdminLock(document.getElementById('app-container')); }
         function switchTab(tabId, btn) { document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active')); document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active')); document.getElementById(tabId).classList.add('active'); btn.classList.add('active'); }
-        function selectTheme(category, themeName) { document.getElementById(`f-${category.charAt(0)}theme`).value = themeName; document.querySelectorAll(`.theme-card-${category}`).forEach(el => el.classList.remove('border-primary', 'bg-blue-50', 'ring-4', 'ring-primary/20')); const selectedCard = document.getElementById(`theme-${category}-${themeName}`); if(selectedCard) selectedCard.classList.add('border-primary', 'bg-blue-50', 'ring-4', 'ring-primary/20'); }
-        function selectThemeReceipt(themeName) { document.getElementById(`f-rtheme`).value = themeName; document.querySelectorAll(`.theme-card-receipt`).forEach(el => el.classList.remove('border-primary', 'bg-blue-50')); const selectedCard = document.getElementById(`theme-receipt-${themeName}`); if(selectedCard) selectedCard.classList.add('border-primary', 'bg-blue-50'); const previewBox = document.getElementById('live-receipt-preview'); previewBox.className = `bg-white w-[58mm] text-black text-xs font-mono shadow-md transition-all duration-300 mx-auto preview-${themeName}`; }
+        
+        function selectTheme(category, themeName) {
+            document.getElementById(`f-${category.charAt(0)}theme`).value = themeName; document.querySelectorAll(`.theme-card-${category}`).forEach(el => el.classList.remove('border-primary', 'bg-blue-50', 'ring-4', 'ring-primary/20')); const selectedCard = document.getElementById(`theme-${category}-${themeName}`); if(selectedCard) selectedCard.classList.add('border-primary', 'bg-blue-50', 'ring-4', 'ring-primary/20');
+        }
+
+        function selectThemeReceipt(themeName) {
+            document.getElementById(`f-rtheme`).value = themeName; document.querySelectorAll(`.theme-card-receipt`).forEach(el => el.classList.remove('border-primary', 'bg-blue-50')); const selectedCard = document.getElementById(`theme-receipt-${themeName}`); if(selectedCard) selectedCard.classList.add('border-primary', 'bg-blue-50'); const previewBox = document.getElementById('live-receipt-preview'); previewBox.className = `bg-white w-[58mm] text-black text-xs font-mono shadow-md transition-all duration-300 mx-auto preview-${themeName}`;
+        }
         function updateLiveReceipt() { document.getElementById('prev-header').innerText = document.getElementById('f-cheader').value; document.getElementById('prev-footer').innerText = document.getElementById('f-cfooter').value; document.getElementById('prev-disc').innerText = document.getElementById('f-cdisc').value; }
 
         function renderPlaylistGUI() {
@@ -741,17 +788,16 @@
             reader.onload = async function(e) {
                 const base64 = e.target.result.split(',')[1];
                 try {
-                    const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'uploadMedia', filename: file.name, mimeType: file.type, base64: base64 }) });
-                    const data = await res.json();
+                    const data = await fetchPost({ action: 'uploadMedia', filename: file.name, mimeType: file.type, base64: base64 });
                     if(data.success) { document.getElementById(targetId).value = data.url; Swal.fire('Berhasil', 'File tersimpan di Google Drive.', 'success'); } 
                     else Swal.fire('Gagal', data.msg, 'error');
-                } catch(err) { Swal.fire('Error', 'Gagal upload. Periksa Izin Script.', 'error'); }
+                } catch(err) { Swal.fire('Error', 'Gagal upload. Pastikan internet stabil.', 'error'); }
             }; reader.readAsDataURL(file);
         }
 
         function renderCounterManagerGUI() {
             const baseUrl = window.location.origin + window.location.pathname; const container = document.getElementById('counter-manager-list'); if(!container) return; 
-            config.counters = config.counters.filter(c => c.name.trim() !== '');
+            config.counters = config.counters.filter(c => c.name && c.name.trim() !== '');
             container.innerHTML = config.counters.map((c, idx) => { 
                 let link = `${baseUrl}?view=staff&role=${c.role}&name=${encodeURIComponent(c.name)}`; 
                 return `<div class="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm"><div class="font-black text-slate-700 w-48 truncate uppercase text-sm flex items-center gap-2"><i class="fa-solid ${c.role==='teller'?'fa-vault text-blue-500':'fa-user-tie text-orange-500'}"></i> ${c.name}</div><div class="bg-slate-100 text-[10px] font-bold px-2 py-1 rounded text-slate-500 uppercase">${c.role}</div><input type="text" readonly value="${link}" class="flex-grow text-[11px] p-2 bg-slate-50 border border-slate-100 rounded outline-none text-slate-500 font-mono"><button onclick="navigator.clipboard.writeText('${link}').then(()=>Toast.fire({icon:'success',title:'URL Link dicopy!'}))" class="bg-slate-800 text-white px-4 py-2 rounded font-bold text-xs hover:bg-black transition-colors" title="Copy Link URL"><i class="fa-solid fa-copy"></i> Copy</button><button onclick="config.counters.splice(${idx}, 1); renderCounterManagerGUI();" class="bg-red-50 text-red-500 px-4 py-2 rounded font-bold text-xs hover:bg-red-100 transition-colors"><i class="fa-solid fa-trash"></i></button></div>`; 
@@ -761,6 +807,7 @@
 
         async function loadAdminReports() { try { const res = await fetchAPI('getReports'); rawReportData = await res.json(); const today = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Makassar'}); document.getElementById('filter-start').value = today; document.getElementById('filter-end').value = today; applyReportFilter(); } catch(e){} }
         function applyReportFilter() { const start = new Date(document.getElementById('filter-start').value); start.setHours(0,0,0,0); const end = new Date(document.getElementById('filter-end').value); end.setHours(23,59,59,999); filteredData = rawReportData.filter(row => { if(!row[0]) return false; const rDate = new Date(row[0]); return rDate >= start && rDate <= end; }); renderReportTableAndCharts(); }
+        
         function renderReportTableAndCharts() {
             const tbody = document.getElementById('r-table-body'); tbody.innerHTML = ''; let staffStats = {}; let total = filteredData.length; let hourlyData = {}; let typeCount = { teller: 0, cs: 0 };
             filteredData.slice().reverse().forEach(row => {
@@ -773,10 +820,12 @@
             Object.keys(staffStats).forEach(name => { if(name !== 'Belum Dipanggil' && name !== 'Ditransfer') { statsHtml += `<div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm transition-transform hover:-translate-y-1"><div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${name}</div><div class="text-3xl font-black text-slate-700 mt-1">${staffStats[name]}</div></div>`; } }); document.getElementById('dynamic-staff-stats').innerHTML = statsHtml;
             renderCharts(typeCount, hourlyData);
         }
+
         function renderCharts(typeCount, hourlyData) {
             const dCtx = document.getElementById('doughnutChart').getContext('2d'); if(dChartInstance) dChartInstance.destroy(); dChartInstance = new Chart(dCtx, { type: 'doughnut', data: { labels: ['Teller', 'Customer Service'], datasets: [{ data: [typeCount.teller, typeCount.cs], backgroundColor: [config.primaryColor, config.secondaryColor], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom' } } } });
             const bCtx = document.getElementById('barChart').getContext('2d'); if(bChartInstance) bChartInstance.destroy(); const labels = Array.from({length: 9}, (_, i) => `${i+8}:00`); const data = labels.map((_, i) => hourlyData[i+8] || 0); bChartInstance = new Chart(bCtx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Jumlah Antrian', data: data, backgroundColor: config.primaryColor, borderRadius: 5 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } } });
         }
+
         function exportCSV() { if(filteredData.length === 0) return Swal.fire('Kosong', 'Tidak ada data untuk diekspor.', 'info'); let csvContent = "data:text/csv;charset=utf-8,Waktu Cetak,Nomor Tiket,Tipe,Nama Loket,Status,Keperluan,Waktu Panggil\n"; filteredData.forEach(row => { csvContent += `${row[0]},${row[1]},${row[2]},${row[3]},${row[4]},"${row[6]}",${row[7]}\r\n`; }); const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent)); link.setAttribute("download", "Laporan_Antrian_SLA.csv"); document.body.appendChild(link); link.click(); document.body.removeChild(link); }
 
         async function saveAdminConfig() { 
@@ -793,10 +842,20 @@
                 videoVolume: parseInt(document.getElementById('f-vvol').value) || 50, voiceVolume: parseInt(document.getElementById('f-svol').value) || 100,
                 voiceConfig: { voiceURI: document.getElementById('f-voice')?.value || "", pitch: document.getElementById('f-pitch')?.value || 1, rate: document.getElementById('f-rate')?.value || 0.85 }
             }; 
-            try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'updateConfig', config: newConfig }) }); if(res.ok) { Swal.fire('Berhasil!', 'Sistem diperbarui.', 'success').then(() => location.reload()); } } catch(e) { Swal.fire('Error', 'Gagal menyimpan.', 'error'); } 
+            try { 
+                const data = await fetchPost({ action: 'updateConfig', config: newConfig }); 
+                if(data.success) { Swal.fire('Berhasil!', 'Sistem diperbarui.', 'success').then(() => location.reload()); } 
+            } catch(e) { Swal.fire('Error', 'Gagal menyimpan.', 'error'); } 
         }
         
-        async function resetQueue() { const result = await Swal.fire({ title: 'Reset Antrian?', text: "Hanya gunakan jika Auto-Reset bermasalah.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Reset Manual' }); if (result.isConfirmed) { Swal.fire({ title: 'Mereset...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'resetQueue' }) }); const data = await res.json(); if(data.success) Swal.fire('Selesai!', data.msg, 'success'); } }
+        async function resetQueue() { 
+            const result = await Swal.fire({ title: 'Reset Antrian?', text: "Hanya gunakan jika Auto-Reset malam hari gagal.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Reset Manual' }); 
+            if (result.isConfirmed) { 
+                Swal.fire({ title: 'Mereset...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); 
+                const data = await fetchPost({ action: 'resetQueue' }); 
+                if(data.success) Swal.fire('Selesai!', data.msg, 'success'); 
+            } 
+        }
         
         init();
     </script>
