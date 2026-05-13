@@ -4,13 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistem Antrian Ultimate v16</title>
-    <!-- Dependencies -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800;900&display=swap');
         :root { --p-color: #004A99; --s-color: #F37021; }
@@ -18,7 +16,6 @@
         .bg-primary { background-color: var(--p-color); } .bg-secondary { background-color: var(--s-color); }
         .text-primary { color: var(--p-color); } .text-secondary { color: var(--s-color); }
         .border-primary { border-color: var(--p-color); }
-        
         .marquee { white-space: nowrap; animation: scroll 30s linear infinite; }
         @keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
         @keyframes float { 0% { transform: translateY(0px) scale(1); opacity: 0.3; } 50% { transform: translateY(-30px) scale(1.1); opacity: 0.6; } 100% { transform: translateY(0px) scale(1); opacity: 0.3; } }
@@ -27,38 +24,20 @@
         @keyframes heartbeat { 0% { transform: scale(1); } 20% { transform: scale(1.1); } 40% { transform: scale(1); } 60% { transform: scale(1.1); } 80% { transform: scale(1); } }
         .slide-in-right { animation: slideInRight 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
         @keyframes slideInRight { 0% { transform: translateX(50px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
-
         .btn-hover-fx { transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); position: relative; overflow: hidden; }
         .btn-hover-fx::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,0.4), rgba(255,255,255,0)); transform: skewX(-25deg); transition: 0.7s; }
         .btn-hover-fx:hover::after { left: 150%; } .btn-hover-fx:hover { transform: translateY(-5px) scale(1.02); } .btn-hover-fx:active { transform: translateY(2px) scale(0.98); }
-
         ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-track { background: #E2E8F0; } ::-webkit-scrollbar-thumb { background: var(--p-color); border-radius: 10px; }
-        
-        /* Thermal Themes Control */
-        .preview-minimalist { border: none; text-align: left; padding: 10px; }
-        .preview-standard { text-align: center; border: 1px dashed #ccc; padding: 15px; }
-        .preview-detailed { text-align: center; border: 2px solid #333; border-radius: 8px; padding: 15px; background-image: radial-gradient(#ddd 1px, transparent 1px); background-size: 10px 10px; }
-        @media print { 
-            body * { display: none; } #print-area, #print-area * { display: block; visibility: visible; } 
-            #print-area { position: absolute; left: 0; top: 0; width: var(--printer-width, 58mm); font-family: 'Courier New', Courier, monospace; color: black; background: white; margin:0; padding:0; } 
-            #print-area.theme-minimalist { border: none; padding: 2mm; text-align: left; }
-            #print-area.theme-standard { text-align: center; border: 1px dashed black; padding: 4mm; }
-            #print-area.theme-detailed { text-align: center; border: 2px solid black; border-radius: 4px; padding: 4mm; }
-        }
-        
-        /* UI Previews (Admin Panels) */
-        .ui-preview-box { height: 100px; width: 100%; border-radius: 8px; background-size: cover; background-position: center; border: 2px solid #e2e8f0; transition: 0.3s; }
-        .theme-selected .ui-preview-box { border-color: var(--p-color); box-shadow: 0 0 0 4px rgba(0,74,153,0.2); }
-        
+        .preview-minimalist { border: none; text-align: left; padding: 10px; } .preview-standard { text-align: center; border: 1px dashed #ccc; padding: 15px; } .preview-detailed { text-align: center; border: 2px solid #333; border-radius: 8px; padding: 15px; background-image: radial-gradient(#ddd 1px, transparent 1px); background-size: 10px 10px; }
+        @media print { body * { display: none; } #print-area, #print-area * { display: block; visibility: visible; } #print-area { position: absolute; left: 0; top: 0; width: var(--printer-width, 58mm); font-family: 'Courier New', Courier, monospace; color: black; background: white; margin:0; padding:0; } #print-area.theme-minimalist { border: none; padding: 2mm; text-align: left; } #print-area.theme-standard { text-align: center; border: 1px dashed black; padding: 4mm; } #print-area.theme-detailed { text-align: center; border: 2px solid black; border-radius: 4px; padding: 4mm; } }
+        .ui-preview-box { height: 100px; width: 100%; border-radius: 8px; background-size: cover; background-position: center; border: 2px solid #e2e8f0; transition: 0.3s; } .theme-selected .ui-preview-box { border-color: var(--p-color); box-shadow: 0 0 0 4px rgba(0,74,153,0.2); }
         .tab-content { display: none; animation: fadeIn 0.3s ease; } .tab-content.active { display: block; } .tab-btn.active { background-color: var(--p-color); color: white; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         #offline-badge { display: none; } body.offline #offline-badge { display: flex; } .counter-offline { opacity: 0.4; filter: grayscale(100%); }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden relative">
-
     <div id="camera-flash" class="fixed inset-0 bg-white z-[9999] pointer-events-none opacity-0 transition-opacity duration-75"></div>
-
     <nav id="top-nav" class="bg-white px-8 py-4 flex justify-between items-center shadow-sm z-50">
         <div class="flex items-center gap-5"><img id="nav-logo" src="" class="h-10 object-contain"><div class="h-8 w-px bg-slate-200"></div><span id="nav-bank-name" class="font-black text-xl text-slate-800 uppercase tracking-tight">Memuat...</span></div>
         <div class="flex items-center gap-4">
@@ -67,7 +46,6 @@
             <div id="clock" class="text-xl font-bold text-slate-600 bg-slate-100 px-5 py-2 rounded-xl border border-slate-200">00:00:00</div>
         </div>
     </nav>
-
     <main id="app-container" class="flex-grow overflow-auto relative bg-[#F4F7FE]"></main>
 
     <div id="print-area" class="hidden flex flex-col mx-auto text-black">
@@ -78,12 +56,11 @@
         <div id="p-footer" class="text-xs whitespace-pre-line text-center w-full font-bold"></div>
         <div id="p-disclaimer" class="text-[9px] text-center w-full mt-2 italic font-medium"></div>
     </div>
-    
     <video id="hidden-cam" autoplay playsinline class="hidden"></video>
 
     <script>
         // ==========================================
-        // MASUKKAN URL GOOGLE APPS SCRIPT ANDA DI SINI
+        // URL DEPLOYMENT BARU GOOGLE APPS SCRIPT
         // ==========================================
         const API_URL = 'https://script.google.com/macros/s/AKfycbzvJSGLivQX1ndpM9eKPy7Q3QTQydK0DHO6WneAgYqy86hHJJ1s-rT67pDX6-yyY5WE1g/exec'; 
         
@@ -94,7 +71,7 @@
         let recentCalls = []; let offlineQueue = JSON.parse(localStorage.getItem('offlineQueue') || '[]'); 
         let rawReportData = []; let filteredData = []; let dChartInstance = null; let bChartInstance = null; let voices = [];
         let hardwareSettings = JSON.parse(localStorage.getItem('hardwareSettings') || '{"camera":"", "printer":""}');
-        let lastCallTimestamp = 0; // PENTING: Untuk Logic Recall Display TV
+        let lastCallTimestamp = 0; 
 
         window.addEventListener('online', () => { document.body.classList.remove('offline'); syncOfflineData(); });
         window.addEventListener('offline', () => { document.body.classList.add('offline'); Swal.fire('Koneksi Terputus', 'Beralih ke Offline Mode.', 'warning'); });
@@ -111,12 +88,24 @@
             });
         }
 
+        // PENTING: Cache Buster &_t=${Date.now()} di-inject agar browser tidak meng-cache respons dari server
+        async function fetchAPI(action) {
+            const cb = new Date().getTime();
+            return fetch(`${API_URL}?action=${action}&_t=${cb}`);
+        }
+
         async function init() {
             loadVoices();
             if(!navigator.onLine) document.body.classList.add('offline');
             document.getElementById('app-container').innerHTML = `<div class="flex h-full items-center justify-center"><i class="fa-solid fa-spinner fa-spin-pulse text-6xl text-primary"></i></div>`;
-            try { const res = await fetch(`${API_URL}?action=getConfig`); config = await res.json(); localStorage.setItem('cachedConfig', JSON.stringify(config)); } 
-            catch (e) { config = JSON.parse(localStorage.getItem('cachedConfig') || '{}'); if(!config.bankName) return Swal.fire({ icon: 'error', title: 'Fatal', text: 'Tidak ada cache offline.' }); }
+            try { 
+                const res = await fetchAPI('getConfig'); 
+                config = await res.json(); 
+                localStorage.setItem('cachedConfig', JSON.stringify(config)); 
+            } catch (e) { 
+                config = JSON.parse(localStorage.getItem('cachedConfig') || '{}'); 
+                if(!config.bankName) return Swal.fire({ icon: 'error', title: 'Fatal', text: 'Tidak ada cache offline.' }); 
+            }
             
             // Set Default Config Fallbacks
             if(!config.playlist) config.playlist = [{type: config.mediaType || 'youtube', url: config.mediaSource || 'aqz-KE-bpKQ', duration: 30}];
@@ -161,7 +150,6 @@
             el.innerHTML = `
                 <div id="kiosk-ui" class="h-full flex-col relative flex overflow-hidden ${config.kioskTheme==='minimalist'?'bg-white':'bg-slate-900'}" style="background-image: url('${config.kioskTheme!=='vibrant'?config.kioskBgImage:''}'); background-size: cover; background-position: center;">
                     ${bgHTML}
-                    
                     <div id="power-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-900/95 backdrop-blur-md transition-opacity duration-500">
                         <button onclick="startSystem()" class="flex flex-col items-center focus:outline-none hover:scale-110 transition-transform btn-hover-fx rounded-3xl p-10">
                             <div class="w-40 h-40 bg-secondary rounded-full flex items-center justify-center mb-8 shadow-[0_0_80px_rgba(243,112,33,0.8)] pulse-heartbeat"><i class="fa-solid fa-power-off text-7xl text-white"></i></div>
@@ -207,8 +195,9 @@
             
             try { 
                 const constraints = hardwareSettings.camera ? { video: { deviceId: { exact: hardwareSettings.camera } } } : { video: true };
-                const stream = await navigator.mediaDevices.getUserMedia(constraints); document.getElementById('hidden-cam').srcObject = stream; 
-            } catch(e) { Swal.fire('Informasi', 'Kamera tidak terdeteksi.', 'info'); }
+                const stream = await navigator.mediaDevices.getUserMedia(constraints); 
+                document.getElementById('hidden-cam').srcObject = stream; 
+            } catch(e) { console.log(e); Swal.fire('Informasi', 'Kamera tidak terdeteksi. Fitur foto dinonaktifkan.', 'info'); }
         }
 
         async function takeTicket(type) {
@@ -228,7 +217,7 @@
             try {
                 const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'generate', type, photo, service }) });
                 const data = await res.json(); if(data.success) { config.receiptTheme = data.receiptTheme; printResi(data.ticket, service); }
-            } catch (e) { Swal.fire('Gagal', 'Koneksi terputus.', 'error'); }
+            } catch (e) { Swal.fire('Gagal', 'Koneksi ke server terputus.', 'error'); }
         }
 
         async function printResi(ticketNo, service) {
@@ -239,7 +228,8 @@
             
             if(hardwareSettings.printer) {
                 try {
-                    const devices = await navigator.usb.getDevices(); const printer = devices.find(d => d.serialNumber === hardwareSettings.printer || d.productName === hardwareSettings.printer);
+                    const devices = await navigator.usb.getDevices();
+                    const printer = devices.find(d => d.serialNumber === hardwareSettings.printer || d.productName === hardwareSettings.printer);
                     if(printer) {
                         await printer.open(); await printer.selectConfiguration(1); await printer.claimInterface(0);
                         const encoder = new TextEncoder();
@@ -257,7 +247,7 @@
         }
 
         // ==========================================
-        // 2. DISPLAY BANKING HALL 
+        // 2. DISPLAY BANKING HALL
         // ==========================================
         function renderDisplay(el) {
             document.getElementById('top-nav').style.display = 'none';
@@ -283,13 +273,13 @@
                     </div>
                 </div>
             `;
+
             const logoFloatHTML = `<div class="absolute top-8 left-8 z-50 flex items-center gap-4 bg-white/10 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/20 shadow-xl"><img src="${config.bankLogo}" class="h-10 brightness-0 invert"></div>`;
 
             if(config.displayTheme === 'elegant-dark') {
                 el.innerHTML = `
                     <div id="display-start-screen" class="absolute inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center">
                         <button onclick="startDisplayMedia()" class="text-white text-3xl font-bold bg-primary px-10 py-5 rounded-full pulse-heartbeat shadow-[0_0_50px_rgba(0,74,153,0.8)]"><i class="fa-solid fa-play mr-4"></i> MULAI LAYAR BANKING HALL</button>
-                        <p class="text-slate-400 mt-4">Klik untuk mengizinkan pemutaran audio browser.</p>
                     </div>
                     <div class="flex-grow flex flex-col bg-slate-900 h-screen w-full relative">
                         <div class="absolute inset-0 z-0 opacity-40" id="media-player-container"></div>
@@ -310,7 +300,9 @@
             } else if(config.displayTheme === 'focus-grid') {
                 counterGridHTML = config.counters.map(c => `<div class="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm flex flex-col" id="box-${c.name.replace(/\s+/g, '-')}"><div class="bg-slate-100 text-slate-500 text-center font-bold py-2 text-sm uppercase tracking-widest flex justify-center items-center gap-2">${c.name} <i class="fa-solid fa-ban text-red-400 hidden" id="icon-break-${c.name.replace(/\s+/g, '-')}"></i></div><div class="text-center py-5 text-5xl font-black text-primary" id="grid-${c.name.replace(/\s+/g, '-')}">-</div></div>`).join('');
                 el.innerHTML = `
-                    <div id="display-start-screen" class="absolute inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center"><button onclick="startDisplayMedia()" class="text-white text-3xl font-bold bg-primary px-10 py-5 rounded-full pulse-heartbeat shadow-[0_0_50px_rgba(0,74,153,0.8)]"><i class="fa-solid fa-play mr-4"></i> MULAI LAYAR BANKING HALL</button></div>
+                    <div id="display-start-screen" class="absolute inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center">
+                        <button onclick="startDisplayMedia()" class="text-white text-3xl font-bold bg-primary px-10 py-5 rounded-full pulse-heartbeat shadow-[0_0_50px_rgba(0,74,153,0.8)]"><i class="fa-solid fa-play mr-4"></i> MULAI LAYAR BANKING HALL</button>
+                    </div>
                     <div class="flex-grow flex flex-col bg-slate-100 h-screen w-full">
                         <div class="flex-grow grid grid-cols-12 h-full">
                             <div class="col-span-4 bg-white border-r border-slate-200 shadow-lg z-10 flex flex-col p-6 overflow-auto">
@@ -326,7 +318,10 @@
                                         <div class="relative w-48 h-48 rounded-[2rem] bg-slate-50 overflow-hidden border-4 border-slate-200 shadow-inner flex items-center justify-center transition-transform duration-500" id="d-avatar-container"><img src="" id="d-img" class="w-full h-full object-cover hidden"><i id="d-icon" class="fa-solid fa-volume-high text-[80px] text-slate-300"></i></div>
                                         <div class="flex flex-col"><span class="text-slate-400 font-bold uppercase tracking-widest mb-2" id="d-status-text">Panggilan Utama</span><div id="d-ticket" class="text-[120px] font-black text-primary leading-none transition-transform duration-300">-</div></div>
                                     </div>
-                                    <div class="flex flex-col gap-4 w-64"><div class="bg-secondary text-white px-8 py-6 rounded-[2rem] text-center shadow-lg" id="d-counter-box"><div class="text-sm font-bold uppercase tracking-widest opacity-80 mb-2">MENUJU LOKET</div><div id="d-counter" class="text-5xl font-black">-</div></div>${nextQueueHTML}</div>
+                                    <div class="flex flex-col gap-4 w-64">
+                                        <div class="bg-secondary text-white px-8 py-6 rounded-[2rem] text-center shadow-lg" id="d-counter-box"><div class="text-sm font-bold uppercase tracking-widest opacity-80 mb-2">MENUJU LOKET</div><div id="d-counter" class="text-5xl font-black">-</div></div>
+                                        ${nextQueueHTML}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -335,7 +330,9 @@
                 `;
             } else {
                 el.innerHTML = `
-                    <div id="display-start-screen" class="absolute inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center"><button onclick="startDisplayMedia()" class="text-white text-3xl font-bold bg-primary px-10 py-5 rounded-full pulse-heartbeat shadow-[0_0_50px_rgba(0,74,153,0.8)]"><i class="fa-solid fa-play mr-4"></i> MULAI LAYAR BANKING HALL</button></div>
+                    <div id="display-start-screen" class="absolute inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center">
+                        <button onclick="startDisplayMedia()" class="text-white text-3xl font-bold bg-primary px-10 py-5 rounded-full pulse-heartbeat shadow-[0_0_50px_rgba(0,74,153,0.8)]"><i class="fa-solid fa-play mr-4"></i> MULAI LAYAR BANKING HALL</button>
+                    </div>
                     <div class="flex-grow flex flex-col bg-slate-900 h-screen w-full">
                         <div class="flex-grow grid grid-cols-12 h-full">
                             <div class="col-span-8 bg-black flex flex-col relative overflow-hidden shadow-2xl">
@@ -394,7 +391,8 @@
         async function pollDisplay() {
             if(!navigator.onLine) return; 
             try {
-                const res = await fetch(`${API_URL}?action=getState`); const state = await res.json();
+                // Gunakan cache-buster pada semua request GET
+                const res = await fetchAPI('getState'); const state = await res.json();
                 
                 const nextTeller = state.teller.lastGenerated > state.teller.currentCalled ? `T-${state.teller.currentCalled + 1}` : '-';
                 const nextCS = state.cs.lastGenerated > state.cs.currentCalled ? `C-${state.cs.currentCalled + 1}` : '-';
@@ -410,6 +408,7 @@
                 }
                 
                 const now = state.lastCalled;
+                // LOGIC PEMANGGILAN RECALL BERDASARKAN TIMESTAMP TERBARU
                 if(now.timestamp && now.timestamp !== lastCallTimestamp && now.ticket !== "-") {
                     if(lastCallTimestamp !== 0) { 
                         recentCalls.unshift({ ticket: document.getElementById('d-ticket').innerText, counter: document.getElementById('d-counter').innerText }); 
@@ -431,7 +430,9 @@
                     const msg = new SpeechSynthesisUtterance(`Nomor antrian, ${now.ticket.replace('-', ' ')}, silahkan menuju, ${now.counter}`); 
                     msg.lang = 'id-ID'; msg.pitch = config.voiceConfig.pitch; msg.rate = config.voiceConfig.rate; msg.volume = config.voiceVolume / 100;
                     if(config.voiceConfig.voiceURI && voices.length > 0) { const v = voices.find(v => v.voiceURI === config.voiceConfig.voiceURI); if(v) msg.voice = v; }
-                    speechSynthesis.speak(msg); lastCallTimestamp = now.timestamp;
+                    speechSynthesis.speak(msg); 
+                    
+                    lastCallTimestamp = now.timestamp;
                 }
             } catch(e){}
         }
@@ -475,15 +476,18 @@
         }
 
         async function changeStaffStatus(counterName) { const status = document.getElementById('staff-status').value; try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'updateStatus', counterName, status }) }); Toast.fire({ icon: 'success', title: `Status Loket diubah.` }); } catch(e){} }
+        
         async function transferQueue(counterName) {
             if(!lastCalled || lastCalled === "-") return Toast.fire({ icon: 'warning', title: 'Belum ada tiket aktif.' });
-            const target = await Swal.fire({ title: 'Transfer Antrian', text: `Pindahkan tiket ${lastCalled} ke loket mana?`, input: 'select', inputOptions: { 'teller': 'Antrian TELLER', 'cs': 'Antrian CUSTOMER SERVICE' }, showCancelButton: true, confirmButtonText: 'Transfer' });
-            if(target.isConfirmed) { Swal.fire({ title: 'Memproses Transfer...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'transfer', targetType: target.value, photo: lastPhoto, service: lastService }) }); const data = await res.json(); if(data.success) { Swal.fire('Berhasil Transfer', `Tiket baru: ${data.newTicket}. Silahkan catat di resi.`, 'success'); markDone(); } } catch(e) { Swal.fire('Error', 'Gagal transfer', 'error'); } }
+            const target = await Swal.fire({ title: 'Transfer Antrian', text: `Pindahkan tiket ${lastCalled} ke loket mana?`, input: 'select', inputOptions: { 'teller': 'Antrian TELLER', 'cs': 'Antrian CUSTOMER SERVICE' }, showCancelButton: true, confirmButtonText: 'Transfer Sekarang' });
+            if(target.isConfirmed) { Swal.fire({ title: 'Memproses Transfer...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'transfer', targetType: target.value, photo: lastPhoto, service: lastService }) }); const data = await res.json(); if(data.success) { Swal.fire('Berhasil Transfer', `Tiket baru: ${data.newTicket}. Silahkan catat di resi.`, 'success'); markDone(); } } catch(e) { Swal.fire('Error', 'Gagal transfer antrian', 'error'); } }
         }
+        
         async function staffAction(action, type, counterName) {
             if(action === 'recall' && (!lastCalled || lastCalled === "-")) return Toast.fire({ icon: 'info', title: 'Belum ada nasabah.' });
             try { 
-                const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action, type, counterName, lastTicket: lastCalled }) }); const data = await res.json(); 
+                const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action, type, counterName, lastTicket: lastCalled }) }); 
+                const data = await res.json(); 
                 if(data.success) { 
                     lastCalled = data.ticket; lastPhoto = data.photo || ""; lastService = data.service || "Umum"; 
                     const tktEl = document.getElementById('s-ticket'); tktEl.innerText = data.ticket; tktEl.classList.add('scale-110'); setTimeout(() => tktEl.classList.remove('scale-110'), 300);
@@ -492,11 +496,12 @@
                 } else { Swal.fire('Info', data.msg, 'info'); } 
             } catch(e) { Toast.fire({ icon: 'error', title: 'Gagal koneksi.' }); }
         }
-        function markDone() { if(!lastCalled || lastCalled === "-") return; confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: [config.primaryColor, config.secondaryColor, '#10B981'] }); document.getElementById('s-ticket').innerText = "-"; document.getElementById('s-service').innerText = "-"; document.getElementById('s-photo').innerHTML = `<i class="fa-solid fa-user-astronaut text-[100px] opacity-30"></i>`; lastCalled = ""; lastPhoto = ""; lastService = ""; Toast.fire({ icon: 'success', title: 'Transaksi Selesai.' }); }
+        
+        function markDone() { if(!lastCalled || lastCalled === "-") return; confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: [config.primaryColor, config.secondaryColor, '#10B981'] }); document.getElementById('s-ticket').innerText = "-"; document.getElementById('s-service').innerText = "-"; document.getElementById('s-photo').innerHTML = `<i class="fa-solid fa-user-astronaut text-[100px] opacity-30"></i>`; lastCalled = ""; lastPhoto = ""; lastService = ""; Toast.fire({ icon: 'success', title: 'Transaksi Selesai direkam.' }); }
         
         async function pollStaffStatus(role, counterName) { 
             try { 
-                const res = await fetch(`${API_URL}?action=getState`); const state = await res.json(); const rData = state[role]; 
+                const res = await fetchAPI('getState'); const state = await res.json(); const rData = state[role]; 
                 if(!lastCalled && state.activeCounters[counterName] && state.activeCounters[counterName] !== "-") { lastCalled = state.activeCounters[counterName]; document.getElementById('s-ticket').innerText = lastCalled; }
                 document.getElementById('st-prev').innerText = rData.currentCalled > 1 ? (role==='teller'?'T-':'C-') + (rData.currentCalled - 1) : '-'; const sisa = rData.lastGenerated - rData.currentCalled; const nextEl = document.getElementById('st-next'); nextEl.innerText = sisa > 0 ? `${sisa} Orang` : 'KOSONG'; if(sisa > 5) nextEl.classList.add('text-red-500', 'pulse-heartbeat'); else nextEl.classList.remove('text-red-500', 'pulse-heartbeat'); 
             } catch(e){} 
@@ -533,7 +538,7 @@
                             <div class="grid grid-cols-2 gap-8">
                                 <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6 h-max">
                                     <div><label class="block text-xs font-bold text-slate-500 mb-2">NAMA BANK</label><input id="f-bname" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" value="${config.bankName}"></div>
-                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">LOGO BANK</label><div class="flex gap-2"><input id="f-logo" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.bankLogo}"><input type="file" id="f-logo-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-logo')"><button onclick="document.getElementById('f-logo-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-cloud-arrow-up"></i></button></div></div>
+                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">LOGO BANK</label><div class="flex gap-2"><input id="f-logo" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.bankLogo}"><input type="file" id="f-logo-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-logo')"><button onclick="document.getElementById('f-logo-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-upload"></i></button></div></div>
                                     <div class="grid grid-cols-2 gap-6"><div><label class="block text-xs font-bold text-slate-500 mb-2">WARNA PRIMARY</label><input type="color" id="f-c1" class="w-full h-12 rounded cursor-pointer border-none shadow-sm" value="${config.primaryColor}"></div><div><label class="block text-xs font-bold text-slate-500 mb-2">WARNA SECONDARY</label><input type="color" id="f-c2" class="w-full h-12 rounded cursor-pointer border-none shadow-sm" value="${config.secondaryColor}"></div></div>
                                 </div>
                                 <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col h-max">
@@ -545,12 +550,12 @@
                         </div>
                         
                         <div id="tab-kiosk" class="tab-content max-w-4xl pt-16">
-                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Desain Layar Kiosk</h2>
+                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Desain Layar Kiosk Nasabah</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6 mb-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">PILIH TEMA KIOSK</label>
                                     <div class="grid grid-cols-3 gap-4">
                                         <div onclick="selectTheme('kiosk', 'default')" id="theme-kiosk-default" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='default'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="ui-preview-box bg-slate-900 flex flex-col items-center justify-center mb-2"><div class="w-8 h-8 rounded-full bg-primary/50 blur-sm"></div></div><div class="font-bold text-sm">Glassmorphism</div></div>
-                                        <div onclick="selectTheme('kiosk', 'minimalist')" id="theme-kiosk-minimalist" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='minimalist'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="ui-preview-box bg-white flex flex-col items-center justify-center mb-2" style="background-image: radial-gradient(#004A99 1px, transparent 1px); background-size: 10px 10px;"><div class="w-8 h-8 bg-slate-100 border"></div></div><div class="font-bold text-sm">Minimalist Clean</div></div>
+                                        <div onclick="selectTheme('kiosk', 'minimalist')" id="theme-kiosk-minimalist" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='minimalist'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="ui-preview-box bg-white flex flex-col items-center justify-center mb-2" style="background-image: radial-gradient(#004A99 1px, transparent 1px); background-size: 10px 10px;"><div class="w-8 h-8 bg-slate-100 border"></div></div><div class="font-bold text-sm">Minimalist</div></div>
                                         <div onclick="selectTheme('kiosk', 'vibrant')" id="theme-kiosk-vibrant" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='vibrant'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="ui-preview-box bg-gradient-to-br from-indigo-500 to-pink-500 flex flex-col items-center justify-center mb-2"></div><div class="font-bold text-sm">Vibrant</div></div>
                                     </div><input type="hidden" id="f-ktheme" value="${config.kioskTheme}">
                                 </div>
@@ -558,7 +563,7 @@
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">TEKS SAMBUTAN UTAMA</label><input id="f-ktitle" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-black text-xl outline-none" value="${config.kioskWelcomeTitle}"></div>
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">DESKRIPSI SAMBUTAN</label><input id="f-kdesc" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none" value="${config.kioskWelcomeDesc}"></div>
-                                <div><label class="block text-xs font-bold text-slate-500 mb-2">BACKGROUND IMAGE (Khusus Tema Minimalist & Vibrant)</label><div class="flex gap-2"><input id="f-kbg" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.kioskBgImage}"><input type="file" id="f-kbg-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-kbg')"><button onclick="document.getElementById('f-kbg-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-cloud-arrow-up"></i></button></div></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">BACKGROUND IMAGE (Khusus Tema Minimalist & Vibrant)</label><div class="flex gap-2"><input id="f-kbg" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.kioskBgImage}"><input type="file" id="f-kbg-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-kbg')"><button onclick="document.getElementById('f-kbg-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-upload"></i></button></div></div>
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">RUNNING TEXT KIOSK</label><textarea id="f-krtext" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" rows="2">${config.kioskRunningText}</textarea></div>
                             </div>
                         </div>
@@ -575,7 +580,7 @@
                                 </div>
                             </div>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
-                                <div><label class="block text-xs font-bold text-slate-500 mb-2">RUNNING TEXT TV</label><textarea id="f-text" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" rows="2">${config.runningText}</textarea></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">RUNNING TEXT BAWAH</label><textarea id="f-text" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" rows="2">${config.runningText}</textarea></div>
                                 <div class="border-t border-slate-200 pt-6">
                                     <div class="flex justify-between items-center mb-4"><h3 class="font-black text-slate-700 uppercase tracking-widest text-sm"><i class="fa-solid fa-photo-film text-primary mr-2"></i> Playlist Media TV (Maks 10)</h3><button onclick="addPlaylistRow()" class="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-bold text-xs hover:bg-blue-100"><i class="fa-solid fa-plus mr-1"></i> Tambah Media</button></div>
                                     <div id="playlist-container" class="flex flex-col gap-3"></div>
@@ -588,20 +593,20 @@
                             <div class="grid grid-cols-3 gap-6 mb-8">
                                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
                                     <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-camera text-primary mr-2"></i> Kamera Kiosk PC</h3>
-                                    <select id="f-camera" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none text-sm mb-4"><option value="">-- Pilih Kamera Kiosk --</option></select>
-                                    <button onclick="scanCameras()" class="bg-slate-800 text-white px-4 py-3 rounded-xl font-bold text-xs w-full hover:bg-black mt-auto"><i class="fa-solid fa-rotate mr-2"></i> Deteksi Kamera</button>
+                                    <select id="f-camera" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none text-sm mb-4"><option value="">-- Pilih Kamera --</option></select>
+                                    <button onclick="scanCameras()" class="bg-slate-800 text-white px-4 py-3 rounded-xl font-bold text-xs w-full hover:bg-black mt-auto"><i class="fa-solid fa-rotate mr-2"></i> Deteksi Ulang</button>
                                 </div>
                                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
                                     <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-usb text-primary mr-2"></i> Scanner Printer USB</h3>
                                     <div id="usb-status" class="bg-slate-50 p-4 rounded-xl border border-slate-200 h-16 overflow-hidden text-xs font-bold text-slate-600 mb-4 flex items-center justify-center">Belum ada perangkat terpilih</div>
-                                    <button onclick="scanUSB()" class="bg-blue-100 text-blue-700 px-4 py-3 rounded-xl font-bold text-xs w-full hover:bg-blue-200 mt-auto"><i class="fa-solid fa-magnifying-glass mr-2"></i> Pilih USB Printer Baru</button>
+                                    <button onclick="scanUSB()" class="bg-blue-100 text-blue-700 px-4 py-3 rounded-xl font-bold text-xs w-full hover:bg-blue-200 mt-auto"><i class="fa-solid fa-magnifying-glass mr-2"></i> Scan Printer WebUSB</button>
                                 </div>
                                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
-                                    <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-volume-high text-primary mr-2"></i> Suara Pemanggil</h3>
+                                    <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-volume-high text-primary mr-2"></i> Audio TV & Pemanggil</h3>
                                     <select id="f-voice" class="w-full p-2 bg-slate-50 border rounded-xl font-bold mb-3 outline-none text-xs truncate"></select>
-                                    <div class="grid grid-cols-2 gap-2 mb-3"><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Nada (Pitch)</label><input type="range" id="f-pitch" min="0" max="2" step="0.1" value="${config.voiceConfig.pitch}" class="w-full"></div><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Cepat (Rate)</label><input type="range" id="f-rate" min="0.5" max="2" step="0.1" value="${config.voiceConfig.rate}" class="w-full"></div></div>
-                                    <div class="grid grid-cols-2 gap-2 mt-auto"><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Vol Video %</label><input type="number" id="f-vvol" min="0" max="100" value="${config.videoVolume}" class="w-full p-2 border rounded text-xs text-center"></div><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Vol Voice %</label><input type="number" id="f-svol" min="0" max="100" value="${config.voiceVolume}" class="w-full p-2 border rounded text-xs text-center"></div></div>
-                                    <button onclick="testVoice()" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-bold text-xs border hover:bg-slate-200 mt-2"><i class="fa-solid fa-play mr-2"></i> Test</button>
+                                    <div class="grid grid-cols-2 gap-2 mb-3"><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Nada Suara</label><input type="range" id="f-pitch" min="0" max="2" step="0.1" value="${config.voiceConfig.pitch}" class="w-full"></div><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Cepat Suara</label><input type="range" id="f-rate" min="0.5" max="2" step="0.1" value="${config.voiceConfig.rate}" class="w-full"></div></div>
+                                    <div class="grid grid-cols-2 gap-2 mt-auto"><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Vol Video %</label><input type="number" id="f-vvol" min="0" max="100" value="${config.videoVolume}" class="w-full p-2 border rounded text-xs text-center font-bold"></div><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Vol Suara %</label><input type="number" id="f-svol" min="0" max="100" value="${config.voiceVolume}" class="w-full p-2 border rounded text-xs text-center font-bold"></div></div>
+                                    <button onclick="testVoice()" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-bold text-xs border hover:bg-slate-200 mt-2"><i class="fa-solid fa-play mr-2"></i> Test Panggil</button>
                                 </div>
                             </div>
 
@@ -610,7 +615,7 @@
                                     <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-receipt text-primary mr-2"></i> Layout Cetakan Kertas</h3>
                                     <div class="grid grid-cols-4 gap-6 mb-6">
                                         <div class="col-span-1"><label class="block text-xs font-bold text-slate-500 mb-2">UKURAN KERTAS</label><select id="f-psize" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"><option value="58mm" ${config.printerSize==='58mm'?'selected':''}>58mm</option><option value="80mm" ${config.printerSize==='80mm'?'selected':''}>80mm</option></select></div>
-                                        <div class="col-span-3"><label class="block text-xs font-bold text-slate-500 mb-2">TEMA RESI (Klik untuk preview)</label>
+                                        <div class="col-span-3"><label class="block text-xs font-bold text-slate-500 mb-2">PILIH TEMA RESI (Klik untuk preview)</label>
                                             <div class="grid grid-cols-3 gap-4">
                                                 <div onclick="selectThemeReceipt('minimalist')" id="theme-receipt-minimalist" class="theme-card-receipt border-2 p-3 rounded-xl cursor-pointer text-center ${config.receiptTheme==='minimalist'?'border-primary bg-blue-50':'border-slate-200'}"><div class="font-bold text-sm">Minimalist</div></div>
                                                 <div onclick="selectThemeReceipt('standard')" id="theme-receipt-standard" class="theme-card-receipt border-2 p-3 rounded-xl cursor-pointer text-center ${config.receiptTheme==='standard'?'border-primary bg-blue-50':'border-slate-200'}"><div class="font-bold text-sm">Standard</div></div>
@@ -661,7 +666,7 @@
                         </div>
 
                         <div id="tab-report" class="tab-content w-full pt-16">
-                            <div class="flex justify-between items-center mb-6"><h2 class="text-3xl font-black text-slate-800">Visual Analytics & Laporan</h2><button onclick="exportCSV()" class="btn-hover-fx bg-emerald-100 text-emerald-700 px-6 py-2 rounded-xl font-bold border border-emerald-200 shadow-sm"><i class="fa-solid fa-file-csv mr-2"></i> Export Data CSV</button></div>
+                            <div class="flex justify-between items-center mb-6"><h2 class="text-3xl font-black text-slate-800">Visual Analytics & Laporan SLA</h2><button onclick="exportCSV()" class="btn-hover-fx bg-emerald-100 text-emerald-700 px-6 py-2 rounded-xl font-bold border border-emerald-200 shadow-sm"><i class="fa-solid fa-file-csv mr-2"></i> Export Data CSV</button></div>
                             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex gap-4 items-end mb-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-1">Dari Tanggal</label><input type="date" id="filter-start" class="p-2 border rounded-lg bg-slate-50 font-bold text-sm outline-none"></div>
                                 <div><label class="block text-xs font-bold text-slate-500 mb-1">Sampai Tanggal</label><input type="date" id="filter-end" class="p-2 border rounded-lg bg-slate-50 font-bold text-sm outline-none"></div>
@@ -669,7 +674,7 @@
                             </div>
                             <div class="grid grid-cols-3 gap-6 mb-6">
                                 <div class="col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center"><h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Distribusi Layanan</h3><div class="relative w-full aspect-square"><canvas id="doughnutChart"></canvas></div></div>
-                                <div class="col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100"><h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Trafik Kunjungan per Jam</h3><div class="relative w-full h-[250px]"><canvas id="barChart"></canvas></div></div>
+                                <div class="col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100"><h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Trafik Transaksi per Jam</h3><div class="relative w-full h-[250px]"><canvas id="barChart"></canvas></div></div>
                             </div>
                             <div class="grid grid-cols-5 gap-4 mb-6" id="dynamic-staff-stats"></div>
                             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[400px]">
@@ -754,7 +759,7 @@
         }
         function addCounterGUI() { const name = document.getElementById('new-counter-name').value.trim(); const role = document.getElementById('new-counter-role').value; if(name) { config.counters.push({name, role}); renderCounterManagerGUI(); document.getElementById('new-counter-name').value = ''; } }
 
-        async function loadAdminReports() { try { const res = await fetch(`${API_URL}?action=getReports`); rawReportData = await res.json(); const today = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Makassar'}); document.getElementById('filter-start').value = today; document.getElementById('filter-end').value = today; applyReportFilter(); } catch(e){} }
+        async function loadAdminReports() { try { const res = await fetchAPI('getReports'); rawReportData = await res.json(); const today = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Makassar'}); document.getElementById('filter-start').value = today; document.getElementById('filter-end').value = today; applyReportFilter(); } catch(e){} }
         function applyReportFilter() { const start = new Date(document.getElementById('filter-start').value); start.setHours(0,0,0,0); const end = new Date(document.getElementById('filter-end').value); end.setHours(23,59,59,999); filteredData = rawReportData.filter(row => { if(!row[0]) return false; const rDate = new Date(row[0]); return rDate >= start && rDate <= end; }); renderReportTableAndCharts(); }
         function renderReportTableAndCharts() {
             const tbody = document.getElementById('r-table-body'); tbody.innerHTML = ''; let staffStats = {}; let total = filteredData.length; let hourlyData = {}; let typeCount = { teller: 0, cs: 0 };
@@ -791,7 +796,7 @@
             try { const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'updateConfig', config: newConfig }) }); if(res.ok) { Swal.fire('Berhasil!', 'Sistem diperbarui.', 'success').then(() => location.reload()); } } catch(e) { Swal.fire('Error', 'Gagal menyimpan.', 'error'); } 
         }
         
-        async function resetQueue() { const result = await Swal.fire({ title: 'Reset Antrian?', text: "Hanya gunakan jika Auto-Reset malam hari gagal.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Reset Manual' }); if (result.isConfirmed) { Swal.fire({ title: 'Mereset...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'resetQueue' }) }); const data = await res.json(); if(data.success) Swal.fire('Selesai!', data.msg, 'success'); } }
+        async function resetQueue() { const result = await Swal.fire({ title: 'Reset Antrian?', text: "Hanya gunakan jika Auto-Reset bermasalah.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Reset Manual' }); if (result.isConfirmed) { Swal.fire({ title: 'Mereset...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'resetQueue' }) }); const data = await res.json(); if(data.success) Swal.fire('Selesai!', data.msg, 'success'); } }
         
         init();
     </script>
