@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Superapp Antrian v21</title>
+    <title>Superapp Antrian v21.1 (Stable)</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#004A99">
+    <link rel="icon" href="https://upload.wikimedia.org/wikipedia/id/8/87/Logo_Bank_Kaltimtara.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -14,7 +15,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="https://cdn.lordicon.com/lordicon.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800;900&display=swap');
@@ -54,6 +54,7 @@
         .btn-hover-fx:hover::after { left: 150%; } .btn-hover-fx:hover { transform: translateY(-5px) scale(1.02); } .btn-hover-fx:active { transform: translateY(2px) scale(0.98); }
         ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-track { background: #E2E8F0; } ::-webkit-scrollbar-thumb { background: var(--p-color); border-radius: 10px; }
         
+        .preview-minimalist { border: none; text-align: left; padding: 10px; } .preview-standard { text-align: center; border: 1px dashed #ccc; padding: 15px; } .preview-detailed { text-align: center; border: 2px solid #333; border-radius: 8px; padding: 15px; background-image: radial-gradient(#ddd 1px, transparent 1px); background-size: 10px 10px; }
         @media print { body * { display: none; } #print-area, #print-area * { display: block; visibility: visible; } #print-area { position: absolute; left: 0; top: 0; width: var(--printer-width, 58mm); font-family: 'Courier New', Courier, monospace; color: black; background: white; margin:0; padding:0; } #print-area.theme-minimalist { border: none; padding: 2mm; text-align: left; } #print-area.theme-standard { text-align: center; border: 1px dashed black; padding: 4mm; } #print-area.theme-detailed { text-align: center; border: 2px solid black; border-radius: 4px; padding: 4mm; } }
         .ui-preview-box { height: 100px; width: 100%; border-radius: 8px; background-size: cover; background-position: center; border: 2px solid #e2e8f0; transition: 0.3s; } .theme-selected .ui-preview-box { border-color: var(--p-color); box-shadow: 0 0 0 4px rgba(0,74,153,0.2); }
         .tab-content { display: none; animation: fadeIn 0.3s ease; } .tab-content.active { display: block; } .tab-btn.active { background-color: var(--p-color); color: white; }
@@ -84,11 +85,13 @@
         <div id="p-disclaimer" class="text-[9px] text-center w-full mt-2 italic font-medium"></div>
     </div>
     
+    <video id="hidden-cam" autoplay playsinline class="hidden"></video>
+
     <script>
         if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(()=>{}); }); }
 
         // ==========================================
-        // GANTI DENGAN URL DEPLOYMENT BARU GOOGLE APPS SCRIPT ANDA
+        // GANTI DENGAN URL DEPLOYMENT BARU ANDA DISINI
         // ==========================================
         const API_URL = 'https://script.google.com/macros/s/AKfycbwJorVZtTvgkZSHf29SrKHuIm4HIYizPiPFCeUPbPM5ZQbGwq-w1UBh6to5vFlMAnOBuw/exec'; 
         
@@ -119,7 +122,6 @@
             }
         }
 
-        // --- AUDIO ENGINE ---
         function loadVoices() { voices = speechSynthesis.getVoices(); if(view === 'admin') populateVoiceSelect(); }
         speechSynthesis.onvoiceschanged = loadVoices;
         function playChime() {
@@ -137,7 +139,6 @@
             osc.start(); osc.stop(ctx.currentTime + 1.2);
         }
 
-        // --- WEATHER ENGINE ---
         async function fetchWeather() {
             try {
                 const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${config.weatherLocation?.lat||-1.2691}&longitude=${config.weatherLocation?.lon||116.8252}&current=temperature_2m,weather_code`);
@@ -151,16 +152,15 @@
         async function init() {
             loadVoices();
             if(!navigator.onLine) document.body.classList.add('offline');
-            
-            // SKELETON LOADER
             document.getElementById('app-container').innerHTML = `<div class="flex flex-col h-full w-full p-10 gap-6"><div class="skeleton-box h-24 w-full"></div><div class="flex-grow flex gap-6"><div class="skeleton-box w-1/3"></div><div class="skeleton-box w-2/3"></div></div></div>`;
-            
             try { config = await fetchAPI('getConfig'); localStorage.setItem('cachedConfig', JSON.stringify(config)); } 
             catch (e) { config = JSON.parse(localStorage.getItem('cachedConfig') || '{}'); if(!config.bankName) return Swal.fire({ icon: 'error', title: 'Fatal', text: 'Tidak ada cache offline. Butuh internet pertama kali.' }); }
             
             if(!config.playlist) config.playlist = [{type: config.mediaType || 'youtube', url: config.mediaSource || 'aqz-KE-bpKQ', duration: 30}];
             if(typeof config.counters[0] === 'string') config.counters = config.counters.map(c => ({name: c, role: c.toLowerCase().includes('cs') ? 'cs' : 'teller'}));
             if(config.videoVolume === undefined) config.videoVolume = 50; if(config.voiceVolume === undefined) config.voiceVolume = 100;
+            // Gunakan logo yang stabil jika kosong/error
+            if(!config.bankLogo || config.bankLogo.includes("400")) config.bankLogo = "https://upload.wikimedia.org/wikipedia/id/8/87/Logo_Bank_Kaltimtara.png";
             if(!config.kioskBgImage) config.kioskBgImage = "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80";
             if(!config.kioskRunningText) config.kioskRunningText = "Selamat Datang di Kiosk Bankaltimtara - Pilih Layanan Anda";
 
@@ -185,13 +185,12 @@
         }
 
         // ==========================================
-        // 1. KIOSK NASABAH (With Dynamic Ambiance)
+        // 1. KIOSK NASABAH (With FontAwesome Animations)
         // ==========================================
         function renderKiosk(el) {
             document.getElementById('top-nav').style.display = 'none';
             let bgHTML = ""; let cardClass = ""; let titleColor = "text-white";
             
-            // DYNAMIC TIME AMBIANCE
             const hour = new Date().getHours();
             let timeGreeting = "SELAMAT DATANG"; let timeBg = "";
             if(config.kioskTheme === 'default') {
@@ -217,7 +216,9 @@
                     ${bgHTML}
                     <div id="power-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-900/95 backdrop-blur-md transition-opacity duration-500">
                         <button onclick="startSystem()" class="flex flex-col items-center focus:outline-none hover:scale-110 transition-transform btn-hover-fx rounded-3xl p-10">
-                            <lord-icon src="https://cdn.lordicon.com/ajkxzzpl.json" trigger="loop" colors="primary:#F37021,secondary:#F37021" style="width:150px;height:150px" class="mb-8 pulse-heartbeat"></lord-icon>
+                            <div class="w-40 h-40 bg-secondary rounded-full flex items-center justify-center mb-8 shadow-[0_0_80px_rgba(243,112,33,0.8)] pulse-heartbeat">
+                                <i class="fa-solid fa-power-off text-7xl text-white"></i>
+                            </div>
                             <h1 class="text-4xl font-black tracking-widest text-white">AKTIFKAN SISTEM</h1>
                         </button>
                     </div>
@@ -246,11 +247,11 @@
                             </div>
                             <div class="grid grid-cols-2 gap-10 w-full max-w-5xl mt-6 z-10">
                                 <button onclick="takeTicket('teller', this)" class="btn-hover-fx bg-gradient-to-br from-blue-500 to-blue-800 p-12 rounded-[3rem] text-white flex flex-col items-center justify-center shadow-[0_20px_50px_rgba(0,74,153,0.5)] border border-white/20">
-                                    <lord-icon src="https://cdn.lordicon.com/qhviklyi.json" trigger="loop" colors="primary:#ffffff,secondary:#ffffff" style="width:100px;height:100px" class="mb-4 drop-shadow-lg"></lord-icon>
+                                    <i class="fa-solid fa-vault text-[90px] mb-6 drop-shadow-lg transition-transform duration-500 hover:rotate-12"></i>
                                     <div class="text-4xl font-black">TELLER</div>
                                 </button>
                                 <button onclick="takeTicket('cs', this)" class="btn-hover-fx bg-gradient-to-br from-secondary to-orange-500 p-12 rounded-[3rem] text-white flex flex-col items-center justify-center shadow-[0_20px_50px_rgba(243,112,33,0.5)] border border-white/20">
-                                    <lord-icon src="https://cdn.lordicon.com/dxjqoygy.json" trigger="loop" colors="primary:#ffffff,secondary:#ffffff" style="width:100px;height:100px" class="mb-4 drop-shadow-lg"></lord-icon>
+                                    <i class="fa-solid fa-user-tie text-[90px] mb-6 drop-shadow-lg transition-transform duration-500 hover:-rotate-12"></i>
                                     <div class="text-4xl font-black">CUSTOMER SERVICE</div>
                                 </button>
                             </div>
@@ -334,7 +335,7 @@
         async function syncOfflineData() { if(offlineQueue.length === 0) return; try { const data = await fetchPost({ action: 'syncOfflineQueue', payload: offlineQueue }); if(data.success) { offlineQueue = []; localStorage.setItem('offlineQueue', '[]'); Toast.fire({ icon: 'success', title: 'Sinkronisasi offline berhasil!' }); } } catch(e) {} }
 
         // ==========================================
-        // 2. DISPLAY BANKING HALL (With Floating QR & Ticker)
+        // 2. DISPLAY BANKING HALL
         // ==========================================
         function renderDisplay(el) {
             document.getElementById('top-nav').style.display = 'none';
@@ -475,8 +476,7 @@
         async function pollDisplay() {
             if(!navigator.onLine) return; 
             try {
-                const state = await fetchAPI('getState');
-                checkConfigUpdate(state.configUpdated);
+                const state = await fetchAPI('getState'); checkConfigUpdate(state.configUpdated);
 
                 const nextTeller = state.teller.lastGenerated > state.teller.currentCalled ? `T-${state.teller.currentCalled + 1}` : '-';
                 const nextCS = state.cs.lastGenerated > state.cs.currentCalled ? `C-${state.cs.currentCalled + 1}` : '-';
@@ -503,7 +503,6 @@
                     const tktEl = document.getElementById('d-ticket'); tktEl.innerText = now.ticket; document.getElementById('d-counter').innerText = now.counter;
                     const stEl = document.getElementById('d-status-text'); if(stEl) stEl.innerHTML = `Nomor <span class="text-primary font-black">${now.ticket}</span> dilayani di <span class="text-primary font-black">${now.counter}</span>`;
                     
-                    // SONIC RIPPLE RADAR
                     const avaCont = document.getElementById('d-avatar-container');
                     tktEl.classList.add('pulse-heartbeat', 'text-secondary'); avaCont.classList.add('pulse-heartbeat', 'border-secondary', 'ripple-fx'); document.getElementById('d-counter-box').classList.add('bg-secondary');
                     setTimeout(() => { tktEl.classList.remove('pulse-heartbeat', 'text-secondary'); avaCont.classList.remove('pulse-heartbeat', 'border-secondary', 'ripple-fx'); document.getElementById('d-counter-box').classList.remove('bg-secondary'); }, 2500);
@@ -547,10 +546,10 @@
                     </div>
 
                     <div id="staff-idle" class="${themeClass} p-12 rounded-[3rem] shadow-xl border flex-grow flex flex-col gap-6 items-center justify-center text-center transition-all duration-500">
-                        <lord-icon src="https://cdn.lordicon.com/lwxuvxwk.json" trigger="loop" colors="primary:var(--p-color),secondary:var(--s-color)" style="width:200px;height:200px"></lord-icon>
+                        <i class="fa-solid fa-mug-hot text-[120px] text-slate-300 mb-2 pulse-heartbeat"></i>
                         <div>
                             <h2 class="text-2xl font-black mb-2 opacity-80">Siap Melayani</h2>
-                            <p class="text-sm opacity-60">Tidak ada nasabah yang sedang dilayani saat ini.</p>
+                            <p class="text-sm opacity-60">Waktunya bernapas sejenak. Tekan spasi untuk memanggil.</p>
                         </div>
                         <button onclick="staffAction('call', '${role}', '${counterName}', this)" class="btn-hover-fx mt-8 px-10 py-5 bg-secondary text-white text-xl font-black rounded-2xl shadow-[0_10px_20px_rgba(243,112,33,0.3)] flex items-center justify-center gap-3"><i class="fa-solid fa-bullhorn"></i> PANGGIL BERIKUTNYA <span class="bg-white/20 text-xs px-2 py-1 rounded ml-2">SPASI</span></button>
                     </div>
@@ -593,7 +592,7 @@
         async function transferQueue(counterName) {
             if(!lastCalled || lastCalled === "-") return Toast.fire({ icon: 'warning', title: 'Belum ada tiket aktif.' });
             const target = await Swal.fire({ title: 'Transfer Antrian', text: `Pindahkan tiket ${lastCalled} ke loket mana?`, input: 'select', inputOptions: { 'teller': 'Antrian TELLER', 'cs': 'Antrian CUSTOMER SERVICE' }, showCancelButton: true, confirmButtonText: 'Transfer Sekarang' });
-            if(target.isConfirmed) { Swal.fire({ title: 'Memproses Transfer...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); try { const data = await fetchPost({ action: 'transfer', targetType: target.value, photo: lastPhoto, service: lastService }); if(data.success) { Swal.fire('Berhasil Transfer', `Tiket baru: ${data.newTicket}. Silahkan catat di resi.`, 'success'); resetStaffUI(); } } catch(e) { Swal.fire('Error', 'Gagal transfer antrian', 'error'); } }
+            if(target.isConfirmed) { Swal.fire({ title: 'Memproses Transfer...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } }); try { const data = await fetchPost({ action: 'transfer', targetType: target.value, photo: lastPhoto, service: lastService }); if(data.success) { Swal.fire('Berhasil Transfer', `Tiket baru: ${data.newTicket}. Silahkan catat di resi.`, 'success'); markDone(); } } catch(e) { Swal.fire('Error', 'Gagal transfer antrian', 'error'); } }
         }
         
         async function staffAction(action, type, counterName, btnElement) {
@@ -625,25 +624,15 @@
         async function pollStaffStatus(role, counterName) { 
             try { 
                 const state = await fetchAPI('getState'); checkConfigUpdate(state.configUpdated); const rData = state[role] || {lastGenerated:0, currentCalled:0}; 
-                
                 if(!lastCalled && state.activeCounters && state.activeCounters[counterName] && state.activeCounters[counterName] !== "-") { lastCalled = state.activeCounters[counterName]; toggleStaffUI(); document.getElementById('s-ticket').innerText = lastCalled; }
                 document.getElementById('st-prev').innerText = rData.currentCalled > 1 ? (role==='teller'?'T-':'C-') + (rData.currentCalled - 1) : '-'; 
                 
-                // SLA Color Morphing Indicator
                 const sisa = rData.lastGenerated - rData.currentCalled; 
                 const nextEl = document.getElementById('st-next'); const stBox = document.getElementById('st-box');
                 
-                if(sisa > 6) { 
-                    stBox.className = "flex gap-8 text-right bg-red-500/90 text-white p-4 rounded-2xl shadow-[0_0_20px_rgba(239,68,68,0.6)] pulse-heartbeat transition-all duration-1000"; 
-                    nextEl.className = "text-2xl font-black text-white"; 
-                } else if(sisa > 3) { 
-                    stBox.className = "flex gap-8 text-right bg-yellow-400 text-slate-900 p-4 rounded-2xl shadow-[0_0_15px_rgba(250,204,21,0.5)] transition-all duration-1000"; 
-                    nextEl.className = "text-2xl font-black text-slate-900"; 
-                } else { 
-                    const innerClass = config.counterTheme === 'light' ? 'bg-slate-50' : 'bg-black/20';
-                    stBox.className = `flex gap-8 text-right ${innerClass} p-4 rounded-2xl border border-white/10 transition-all duration-1000`; 
-                    nextEl.className = "text-2xl font-black text-secondary transition-all duration-300"; 
-                }
+                if(sisa > 6) { stBox.className = "flex gap-8 text-right bg-red-500/90 text-white p-4 rounded-2xl shadow-[0_0_20px_rgba(239,68,68,0.6)] pulse-heartbeat transition-all duration-1000"; nextEl.className = "text-2xl font-black text-white"; } 
+                else if(sisa > 3) { stBox.className = "flex gap-8 text-right bg-yellow-400 text-slate-900 p-4 rounded-2xl shadow-[0_0_15px_rgba(250,204,21,0.5)] transition-all duration-1000"; nextEl.className = "text-2xl font-black text-slate-900"; } 
+                else { const innerClass = config.counterTheme === 'light' ? 'bg-slate-50' : 'bg-black/20'; stBox.className = `flex gap-8 text-right ${innerClass} p-4 rounded-2xl border border-white/10 transition-all duration-1000`; nextEl.className = "text-2xl font-black text-secondary transition-all duration-300"; }
                 nextEl.innerText = sisa > 0 ? `${sisa} Orang` : 'KOSONG';
             } catch(e){} 
         }
@@ -679,11 +668,11 @@
                             <div class="grid grid-cols-2 gap-8">
                                 <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6 h-max">
                                     <div><label class="block text-xs font-bold text-slate-500 mb-2">NAMA BANK</label><input id="f-bname" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" value="${config.bankName}"></div>
-                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">LOGO BANK (Pilih / Paste URL)</label><div class="flex gap-2"><input id="f-logo" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.bankLogo}"><input type="file" id="f-logo-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-logo')"><button onclick="document.getElementById('f-logo-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-cloud-arrow-up"></i></button></div></div>
+                                    <div><label class="block text-xs font-bold text-slate-500 mb-2">LOGO BANK (Upload / URL)</label><div class="flex gap-2"><input id="f-logo" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.bankLogo}"><input type="file" id="f-logo-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-logo')"><button onclick="document.getElementById('f-logo-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-upload"></i></button></div></div>
                                     <div class="grid grid-cols-2 gap-6"><div><label class="block text-xs font-bold text-slate-500 mb-2">WARNA PRIMARY</label><input type="color" id="f-c1" class="w-full h-12 rounded cursor-pointer border-none shadow-sm" value="${config.primaryColor}"></div><div><label class="block text-xs font-bold text-slate-500 mb-2">WARNA SECONDARY</label><input type="color" id="f-c2" class="w-full h-12 rounded cursor-pointer border-none shadow-sm" value="${config.secondaryColor}"></div></div>
                                 </div>
                                 <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col h-max">
-                                    <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-money-bill-trend-up text-primary mr-2"></i> Papan Kurs & Bunga</h3>
+                                    <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-money-bill-trend-up text-primary mr-2"></i> Papan Kurs & Bunga (Di TV)</h3>
                                     <div id="rates-container" class="mb-4">${ratesHtmlAdmin}</div>
                                     <button onclick="addRate()" class="bg-blue-50 text-blue-600 p-3 rounded-xl border border-blue-200 font-bold text-sm hover:bg-blue-100"><i class="fa-solid fa-plus mr-2"></i> Tambah Baris Kurs/Bunga</button>
                                 </div>
@@ -691,66 +680,52 @@
                         </div>
                         
                         <div id="tab-kiosk" class="tab-content max-w-4xl pt-16">
-                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Desain Layar Kiosk Nasabah</h2>
+                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Desain Layar Kiosk</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6 mb-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">PILIH TEMA KIOSK</label>
                                     <div class="grid grid-cols-3 gap-4">
-                                        <div onclick="selectTheme('kiosk', 'default')" id="theme-kiosk-default" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='default'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}">
-                                            <div class="ui-preview-box bg-slate-900 flex flex-col items-center justify-center mb-2"><div class="w-8 h-8 rounded-full bg-primary/50 blur-sm"></div></div><div class="font-bold text-sm">Time Ambiance</div>
-                                        </div>
-                                        <div onclick="selectTheme('kiosk', 'minimalist')" id="theme-kiosk-minimalist" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='minimalist'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}">
-                                            <div class="ui-preview-box bg-white flex flex-col items-center justify-center mb-2" style="background-image: radial-gradient(#004A99 1px, transparent 1px); background-size: 10px 10px;"><div class="w-8 h-8 bg-slate-100 border"></div></div><div class="font-bold text-sm">Minimalist</div>
-                                        </div>
-                                        <div onclick="selectTheme('kiosk', 'vibrant')" id="theme-kiosk-vibrant" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='vibrant'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}">
-                                            <div class="ui-preview-box bg-gradient-to-br from-indigo-500 to-pink-500 flex flex-col items-center justify-center mb-2"></div><div class="font-bold text-sm">Vibrant</div>
-                                        </div>
+                                        <div onclick="selectTheme('kiosk', 'default')" id="theme-kiosk-default" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='default'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="ui-preview-box bg-slate-900 flex flex-col items-center justify-center mb-2"><div class="w-8 h-8 rounded-full bg-primary/50 blur-sm"></div></div><div class="font-bold text-sm">Time Ambiance</div></div>
+                                        <div onclick="selectTheme('kiosk', 'minimalist')" id="theme-kiosk-minimalist" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='minimalist'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="ui-preview-box bg-white flex flex-col items-center justify-center mb-2" style="background-image: radial-gradient(#004A99 1px, transparent 1px); background-size: 10px 10px;"><div class="w-8 h-8 bg-slate-100 border"></div></div><div class="font-bold text-sm">Minimalist</div></div>
+                                        <div onclick="selectTheme('kiosk', 'vibrant')" id="theme-kiosk-vibrant" class="theme-card-kiosk border-2 p-4 rounded-xl cursor-pointer hover:bg-slate-50 text-center ${config.kioskTheme==='vibrant'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="ui-preview-box bg-gradient-to-br from-indigo-500 to-pink-500 flex flex-col items-center justify-center mb-2"></div><div class="font-bold text-sm">Vibrant</div></div>
                                     </div><input type="hidden" id="f-ktheme" value="${config.kioskTheme}">
                                 </div>
                             </div>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
-                                <div><label class="block text-xs font-bold text-slate-500 mb-2">TEKS SAMBUTAN (Khusus Minimalist & Vibrant)</label><input id="f-ktitle" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-black text-xl outline-none" value="${config.kioskWelcomeTitle}"></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">TEKS SAMBUTAN UTAMA</label><input id="f-ktitle" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-black text-xl outline-none" value="${config.kioskWelcomeTitle}"></div>
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">DESKRIPSI SAMBUTAN</label><input id="f-kdesc" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none" value="${config.kioskWelcomeDesc}"></div>
-                                <div><label class="block text-xs font-bold text-slate-500 mb-2">BACKGROUND IMAGE (Opsional Khusus Tema Minimalist & Vibrant)</label><div class="flex gap-2"><input id="f-kbg" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.kioskBgImage}"><input type="file" id="f-kbg-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-kbg')"><button onclick="document.getElementById('f-kbg-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-cloud-arrow-up"></i></button></div></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">BACKGROUND IMAGE (Khusus Tema Minimalist & Vibrant)</label><div class="flex gap-2"><input id="f-kbg" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" value="${config.kioskBgImage}"><input type="file" id="f-kbg-file" accept="image/*" class="hidden" onchange="uploadMedia(this, 'f-kbg')"><button onclick="document.getElementById('f-kbg-file').click()" class="bg-slate-800 text-white px-4 rounded-xl text-sm font-bold hover:bg-black"><i class="fa-solid fa-upload"></i></button></div></div>
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">RUNNING TEXT KIOSK</label><textarea id="f-krtext" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" rows="2">${config.kioskRunningText}</textarea></div>
                             </div>
                         </div>
 
                         <div id="tab-display" class="tab-content max-w-4xl pt-16">
-                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Media Layar Banking Hall</h2>
+                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Desain Layar Banking Hall</h2>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6 mb-6">
                                 <div><label class="block text-xs font-bold text-slate-500 mb-2">PILIH TEMA LAYAR TV</label>
                                     <div class="grid grid-cols-3 gap-4">
-                                        <div onclick="selectTheme('display', 'modern-split')" id="theme-display-modern-split" class="theme-card-display border-2 p-4 rounded-xl cursor-pointer text-center ${config.displayTheme==='modern-split'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}">
-                                            <div class="ui-preview-box bg-slate-800 mb-2 flex"><div class="w-2/3 border-r"></div><div class="w-1/3 bg-white"></div></div><div class="font-bold text-sm">Modern Split</div>
-                                        </div>
-                                        <div onclick="selectTheme('display', 'elegant-dark')" id="theme-display-elegant-dark" class="theme-card-display border-2 p-4 rounded-xl cursor-pointer text-center ${config.displayTheme==='elegant-dark'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}">
-                                            <div class="ui-preview-box bg-slate-900 mb-2 flex items-center justify-center"><div class="w-10 h-10 rounded-full border"></div></div><div class="font-bold text-sm">Cinematic Dark</div>
-                                        </div>
-                                        <div onclick="selectTheme('display', 'focus-grid')" id="theme-display-focus-grid" class="theme-card-display border-2 p-4 rounded-xl cursor-pointer text-center ${config.displayTheme==='focus-grid'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}">
-                                            <div class="ui-preview-box bg-white mb-2 flex"><div class="w-1/3 border-r bg-slate-100"></div><div class="w-2/3 bg-slate-50"><div class="h-1/2 bg-slate-300 border-b"></div></div></div><div class="font-bold text-sm">Focus Grid</div>
-                                        </div>
+                                        <div onclick="selectTheme('display', 'modern-split')" id="theme-display-modern-split" class="theme-card-display border-2 p-4 rounded-xl cursor-pointer text-center ${config.displayTheme==='modern-split'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="ui-preview-box bg-slate-800 mb-2 flex"><div class="w-2/3 border-r"></div><div class="w-1/3 bg-white"></div></div><div class="font-bold text-sm">Modern Split</div></div>
+                                        <div onclick="selectTheme('display', 'elegant-dark')" id="theme-display-elegant-dark" class="theme-card-display border-2 p-4 rounded-xl cursor-pointer text-center ${config.displayTheme==='elegant-dark'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="ui-preview-box bg-slate-900 mb-2 flex flex-col items-center justify-center"><div class="w-10 h-10 bg-white/20 rounded-full"></div></div><div class="font-bold text-sm">Cinematic Dark</div></div>
+                                        <div onclick="selectTheme('display', 'focus-grid')" id="theme-display-focus-grid" class="theme-card-display border-2 p-4 rounded-xl cursor-pointer text-center ${config.displayTheme==='focus-grid'?'border-primary bg-blue-50 ring-4 ring-primary/20':'border-slate-200'}"><div class="ui-preview-box bg-white mb-2 flex"><div class="w-1/3 border-r bg-slate-100"></div><div class="w-2/3 bg-slate-50"><div class="h-1/2 bg-slate-300 border-b"></div></div></div><div class="font-bold text-sm">Focus Grid</div></div>
                                     </div><input type="hidden" id="f-dtheme" value="${config.displayTheme}">
                                 </div>
                             </div>
                             <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 grid gap-6">
-                                <div><label class="block text-xs font-bold text-slate-500 mb-2">RUNNING TEXT BAWAH (Berita & Info)</label><textarea id="f-text" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" rows="2">${config.runningText}</textarea></div>
-                                
+                                <div><label class="block text-xs font-bold text-slate-500 mb-2">RUNNING TEXT BAWAH (PROMOSI)</label><textarea id="f-text" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" rows="2">${config.runningText}</textarea></div>
                                 <div class="border-t border-slate-200 pt-6">
-                                    <div class="flex justify-between items-center mb-4"><h3 class="font-black text-slate-700 uppercase tracking-widest text-sm"><i class="fa-solid fa-photo-film text-primary mr-2"></i> Playlist Media (Maks 10)</h3><button onclick="addPlaylistRow()" class="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-bold text-xs hover:bg-blue-100"><i class="fa-solid fa-plus"></i> Tambah Media</button></div>
-                                    <p class="text-[10px] text-slate-400 mb-3 italic">Tahan ikon <i class="fa-solid fa-grip-vertical"></i> lalu geser (Drag & Drop) untuk mengatur urutan.</p>
+                                    <div class="flex justify-between items-center mb-4"><h3 class="font-black text-slate-700 uppercase tracking-widest text-sm"><i class="fa-solid fa-photo-film text-primary mr-2"></i> Playlist Media TV (Drag & Drop)</h3><button onclick="addPlaylistRow()" class="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-bold text-xs hover:bg-blue-100"><i class="fa-solid fa-plus mr-1"></i> Tambah Media</button></div>
+                                    <p class="text-xs text-slate-500 mb-4">Tahan ikon <i class="fa-solid fa-grip-vertical"></i> lalu geser untuk mengubah urutan putar media di TV.</p>
                                     <div id="playlist-container" class="flex flex-col gap-3"></div>
                                 </div>
                             </div>
                         </div>
 
                         <div id="tab-printer" class="tab-content max-w-6xl pt-16">
-                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Hardware: Printer, Kamera & Suara</h2>
-                            
+                            <h2 class="text-3xl font-black text-slate-800 mb-8 border-b pb-4">Hardware: Printer, Kamera & Audio</h2>
                             <div class="grid grid-cols-3 gap-6 mb-8">
                                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
-                                    <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-camera text-primary mr-2"></i> Pilihan Kamera PC</h3>
-                                    <select id="f-camera" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none text-sm mb-4"><option value="">-- Pilih Kamera Kiosk --</option></select>
-                                    <button onclick="scanCameras()" class="bg-slate-800 text-white px-4 py-3 rounded-xl font-bold text-xs w-full hover:bg-black mt-auto"><i class="fa-solid fa-rotate mr-2"></i> Deteksi Kamera</button>
+                                    <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-camera text-primary mr-2"></i> Kamera Kiosk PC</h3>
+                                    <select id="f-camera" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none text-sm mb-4"><option value="">-- Pilih Kamera --</option></select>
+                                    <button onclick="scanCameras()" class="bg-slate-800 text-white px-4 py-3 rounded-xl font-bold text-xs w-full hover:bg-black mt-auto"><i class="fa-solid fa-rotate mr-2"></i> Deteksi Ulang</button>
                                 </div>
                                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
                                     <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-usb text-primary mr-2"></i> Scanner Printer USB</h3>
@@ -758,11 +733,11 @@
                                     <button onclick="scanUSB()" class="bg-blue-100 text-blue-700 px-4 py-3 rounded-xl font-bold text-xs w-full hover:bg-blue-200 mt-auto"><i class="fa-solid fa-magnifying-glass mr-2"></i> Pilih USB Printer Baru</button>
                                 </div>
                                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
-                                    <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-volume-high text-primary mr-2"></i> Suara Pemanggil</h3>
+                                    <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-volume-high text-primary mr-2"></i> Audio TV & Pemanggil</h3>
                                     <select id="f-voice" class="w-full p-2 bg-slate-50 border rounded-xl font-bold mb-3 outline-none text-xs truncate"></select>
-                                    <div class="grid grid-cols-2 gap-2 mb-3"><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Nada</label><input type="range" id="f-pitch" min="0" max="2" step="0.1" value="${config.voiceConfig.pitch}" class="w-full"></div><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Cepat</label><input type="range" id="f-rate" min="0.5" max="2" step="0.1" value="${config.voiceConfig.rate}" class="w-full"></div></div>
+                                    <div class="grid grid-cols-2 gap-2 mb-3"><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Nada (Pitch)</label><input type="range" id="f-pitch" min="0" max="2" step="0.1" value="${config.voiceConfig.pitch}" class="w-full"></div><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Cepat (Rate)</label><input type="range" id="f-rate" min="0.5" max="2" step="0.1" value="${config.voiceConfig.rate}" class="w-full"></div></div>
                                     <div class="grid grid-cols-2 gap-2 mt-auto"><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Vol Video %</label><input type="number" id="f-vvol" min="0" max="100" value="${config.videoVolume}" class="w-full p-2 border rounded text-xs text-center font-bold"></div><div><label class="block text-[10px] font-bold text-slate-500 mb-1">Vol Suara %</label><input type="number" id="f-svol" min="0" max="100" value="${config.voiceVolume}" class="w-full p-2 border rounded text-xs text-center font-bold"></div></div>
-                                    <button onclick="testVoice()" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-bold text-xs border hover:bg-slate-200 mt-2"><i class="fa-solid fa-play mr-2"></i> Test</button>
+                                    <button onclick="testVoice()" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-bold text-xs border hover:bg-slate-200 mt-2"><i class="fa-solid fa-play mr-2"></i> Test Panggil</button>
                                 </div>
                             </div>
 
@@ -770,7 +745,7 @@
                                 <div class="col-span-8 bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
                                     <h3 class="font-black text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-receipt text-primary mr-2"></i> Layout Cetakan Kertas</h3>
                                     <div class="grid grid-cols-4 gap-6 mb-6">
-                                        <div class="col-span-1"><label class="block text-xs font-bold text-slate-500 mb-2">KERTAS</label><select id="f-psize" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"><option value="58mm" ${config.printerSize==='58mm'?'selected':''}>58mm</option><option value="80mm" ${config.printerSize==='80mm'?'selected':''}>80mm</option></select></div>
+                                        <div class="col-span-1"><label class="block text-xs font-bold text-slate-500 mb-2">UKURAN KERTAS</label><select id="f-psize" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"><option value="58mm" ${config.printerSize==='58mm'?'selected':''}>58mm</option><option value="80mm" ${config.printerSize==='80mm'?'selected':''}>80mm</option></select></div>
                                         <div class="col-span-3"><label class="block text-xs font-bold text-slate-500 mb-2">PILIH TEMA RESI (Klik preview)</label>
                                             <div class="grid grid-cols-3 gap-4">
                                                 <div onclick="selectThemeReceipt('minimalist')" id="theme-receipt-minimalist" class="theme-card-receipt border-2 p-3 rounded-xl cursor-pointer text-center ${config.receiptTheme==='minimalist'?'border-primary bg-blue-50':'border-slate-200'}"><div class="font-bold text-sm">Minimalist</div></div>
@@ -878,11 +853,20 @@
         function selectThemeReceipt(themeName) { document.getElementById(`f-rtheme`).value = themeName; document.querySelectorAll(`.theme-card-receipt`).forEach(el => el.classList.remove('border-primary', 'bg-blue-50')); const selectedCard = document.getElementById(`theme-receipt-${themeName}`); if(selectedCard) selectedCard.classList.add('border-primary', 'bg-blue-50'); const previewBox = document.getElementById('live-receipt-preview'); previewBox.className = `bg-white w-[58mm] text-black text-xs font-mono shadow-md transition-all duration-300 mx-auto preview-${themeName}`; }
         function updateLiveReceipt() { document.getElementById('prev-header').innerText = document.getElementById('f-cheader').value; document.getElementById('prev-footer').innerText = document.getElementById('f-cfooter').value; document.getElementById('prev-disc').innerText = document.getElementById('f-cdisc').value; }
 
+        // Drag and Drop Playlist Builder
         let dragSrcEl = null;
         function dragStartPL(e, i) { dragSrcEl = i; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/html', e.target.innerHTML); e.target.classList.add('dragging'); }
         function dragOverPL(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('drag-over'); return false; }
         function dragLeavePL(e) { e.currentTarget.classList.remove('drag-over'); }
-        function dropPL(e, i) { e.stopPropagation(); e.currentTarget.classList.remove('drag-over'); if (dragSrcEl !== i) { const item = config.playlist.splice(dragSrcEl, 1)[0]; config.playlist.splice(i, 0, item); renderPlaylistGUI(); } return false; }
+        function dropPL(e, i) { 
+            e.stopPropagation(); e.currentTarget.classList.remove('drag-over');
+            if (dragSrcEl !== i) {
+                const item = config.playlist.splice(dragSrcEl, 1)[0];
+                config.playlist.splice(i, 0, item);
+                renderPlaylistGUI();
+            }
+            return false;
+        }
 
         function renderPlaylistGUI() {
             const container = document.getElementById('playlist-container'); if(!container) return;
@@ -890,7 +874,7 @@
                 <div draggable="true" ondragstart="dragStartPL(event, ${i})" ondragover="dragOverPL(event)" ondragleave="dragLeavePL(event)" ondrop="dropPL(event, ${i})" ondragend="this.classList.remove('dragging')" class="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-move hover:bg-slate-100 transition-colors" id="plRow_${i}">
                     <i class="fa-solid fa-grip-vertical text-slate-400 cursor-grab px-2"></i>
                     <span class="font-black text-slate-400 w-6">${i+1}.</span>
-                    <select id="plType_${i}" class="p-2 border rounded-lg text-xs font-bold outline-none pointer-events-auto"><option value="image" ${m.type==='image'?'selected':''}>Foto</option><option value="youtube" ${m.type==='youtube'?'selected':''}>Video YT</option><option value="local" ${m.type==='local'?'selected':''}>Video PC</option></select>
+                    <select id="plType_${i}" class="p-2 border rounded-lg text-xs font-bold outline-none"><option value="image" ${m.type==='image'?'selected':''}>Foto</option><option value="youtube" ${m.type==='youtube'?'selected':''}>Video YT</option><option value="local" ${m.type==='local'?'selected':''}>Video PC</option></select>
                     <input type="text" id="plUrl_${i}" value="${m.url}" placeholder="URL Gambar / ID Youtube" class="flex-grow p-2 border rounded-lg text-xs outline-none font-mono pointer-events-auto">
                     <input type="file" id="plFile_${i}" accept="image/*,video/*" class="hidden" onchange="uploadMedia(this, 'plUrl_${i}')">
                     <button onclick="document.getElementById('plFile_${i}').click()" title="Upload File" class="bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs hover:bg-slate-300 pointer-events-auto"><i class="fa-solid fa-upload"></i></button>
@@ -940,7 +924,6 @@
 
         async function loadAdminReports() { try { const res = await fetchAPI('getReports'); rawReportData = await res.json(); const today = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Makassar'}); document.getElementById('filter-start').value = today; document.getElementById('filter-end').value = today; applyReportFilter(); } catch(e){} }
         function applyReportFilter() { const start = new Date(document.getElementById('filter-start').value); start.setHours(0,0,0,0); const end = new Date(document.getElementById('filter-end').value); end.setHours(23,59,59,999); filteredData = rawReportData.filter(row => { if(!row[0]) return false; const rDate = new Date(row[0]); return rDate >= start && rDate <= end; }); renderReportTableAndCharts(); }
-        
         function renderReportTableAndCharts() {
             const tbody = document.getElementById('r-table-body'); tbody.innerHTML = ''; let staffStats = {}; let total = filteredData.length; let hourlyData = {}; let typeCount = { teller: 0, cs: 0 };
             filteredData.slice().reverse().forEach(row => {
@@ -953,12 +936,10 @@
             Object.keys(staffStats).forEach(name => { if(name !== 'Belum Dipanggil' && name !== 'Ditransfer') { statsHtml += `<div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm transition-transform hover:-translate-y-1"><div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${name}</div><div class="text-3xl font-black text-slate-700 mt-1">${staffStats[name]}</div></div>`; } }); document.getElementById('dynamic-staff-stats').innerHTML = statsHtml;
             renderCharts(typeCount, hourlyData);
         }
-
         function renderCharts(typeCount, hourlyData) {
             const dCtx = document.getElementById('doughnutChart').getContext('2d'); if(dChartInstance) dChartInstance.destroy(); dChartInstance = new Chart(dCtx, { type: 'doughnut', data: { labels: ['Teller', 'Customer Service'], datasets: [{ data: [typeCount.teller, typeCount.cs], backgroundColor: [config.primaryColor, config.secondaryColor], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom' } } } });
             const bCtx = document.getElementById('barChart').getContext('2d'); if(bChartInstance) bChartInstance.destroy(); const labels = Array.from({length: 9}, (_, i) => `${i+8}:00`); const data = labels.map((_, i) => hourlyData[i+8] || 0); bChartInstance = new Chart(bCtx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Jumlah Antrian', data: data, backgroundColor: config.primaryColor, borderRadius: 5 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } } });
         }
-
         function exportCSV() { if(filteredData.length === 0) return Swal.fire('Kosong', 'Tidak ada data untuk diekspor.', 'info'); let csvContent = "data:text/csv;charset=utf-8,Waktu Cetak,Nomor Tiket,Tipe,Nama Loket,Status,Keperluan,Waktu Panggil\n"; filteredData.forEach(row => { csvContent += `${row[0]},${row[1]},${row[2]},${row[3]},${row[4]},"${row[6]}",${row[7]}\r\n`; }); const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent)); link.setAttribute("download", "Laporan_Antrian_SLA.csv"); document.body.appendChild(link); link.click(); document.body.removeChild(link); }
 
         async function saveAdminConfig() { 
